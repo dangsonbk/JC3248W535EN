@@ -9,6 +9,7 @@
 #include <esp_chip_info.h>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include "weather_service.h"
 
 static const char *TAG = "DEMO_LVGL";
 
@@ -28,12 +29,8 @@ static const char *TAG = "DEMO_LVGL";
  */
 #define LVGL_PORT_ROTATION_DEGREE (90)
 
-/**
- * To use the built-in examples and demos of LVGL uncomment the includes below respectively.
- * You also need to copy `lvgl/examples` to `lvgl/src/examples`. Similarly for the demos `lvgl/demos` to `lvgl/src/demos`.
- */
-#include <demos/lv_demos.h>
-// #include <examples/lv_examples.h>
+#include "gui_launcher.h"
+#include "wifi_controller.h"
 
 void setup();
 
@@ -80,8 +77,12 @@ void setup()
   ESP_LOGI(TAG, "Free PSRAM: %d bytes", freePsram);
   logSection("Initialize panel device");
   // ESP_LOGI(TAG, "Initialize panel device");
+  lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+  port_cfg.task_affinity = 1; // Pin LVGL task to Core 1 (leaving Core 0 for system/wifi)
+  port_cfg.task_priority = 5;
+
   bsp_display_cfg_t cfg = {
-      .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+      .lvgl_port_cfg = port_cfg,
       .buffer_size = EXAMPLE_LCD_QSPI_H_RES * EXAMPLE_LCD_QSPI_V_RES,
 #if LVGL_PORT_ROTATION_DEGREE == 90
       .rotate = LV_DISP_ROT_90,
@@ -101,21 +102,14 @@ void setup()
   /* Lock the mutex due to the LVGL APIs are not thread-safe */
   bsp_display_lock(0);
 
-  /**
-   * Try an example. Don't forget to uncomment header.
-   * See all the examples online: https://docs.lvgl.io/master/examples.html
-   * source codes: https://github.com/lvgl/lvgl/tree/e7f88efa5853128bf871dde335c0ca8da9eb7731/examples
-   */
-  //  lv_example_btn_1();
+  /* Initialize Futuristic Mission Control Launcher */
+  gui_launcher_init();
 
-  /**
-   * Or try out a demo.
-   * Don't forget to uncomment header and enable the demos in `lv_conf.h`. E.g. `LV_USE_DEMOS_WIDGETS`
-   */
-  lv_demo_widgets();
-  //     lv_demo_benchmark();
-  // lv_demo_music();
-  // lv_demo_stress();
+  /* Initialize Wi-Fi Controller worker on Core 0 */
+  wifi_controller_init();
+
+  /* Initialize Weather Service worker on Core 0 */
+  weather_service_init();
 
   /* Release the mutex */
   bsp_display_unlock();
