@@ -52,8 +52,40 @@ uint32_t gui_display_get_sleep_timeout(void);
  */
 void gui_display_set_sleep_timeout(uint32_t timeout_sec);
 
+#include "gui_screensaver.h"
+
 /**
- * @brief Wake up display if currently asleep
+ * @brief Get whether screensaver is enabled
+ */
+bool gui_display_get_screensaver_enabled(void);
+
+/**
+ * @brief Set screensaver enable
+ */
+void gui_display_set_screensaver_enabled(bool enabled);
+
+/**
+ * @brief Get screensaver timeout in seconds
+ */
+uint32_t gui_display_get_screensaver_timeout(void);
+
+/**
+ * @brief Set screensaver timeout in seconds (e.g. 60, 120, 300, 600)
+ */
+void gui_display_set_screensaver_timeout(uint32_t timeout_sec);
+
+/**
+ * @brief Get active screensaver effect
+ */
+screensaver_effect_t gui_display_get_screensaver_fx(void);
+
+/**
+ * @brief Set active screensaver effect
+ */
+void gui_display_set_screensaver_fx(screensaver_effect_t fx);
+
+/**
+ * @brief Wake up display if currently asleep or exit screensaver
  */
 void gui_display_wake_up(void);
 

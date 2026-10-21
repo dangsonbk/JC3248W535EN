@@ -25,7 +25,8 @@ static const char *TAG = "WIFI_CTRL";
 typedef enum {
     WIFI_CMD_SCAN = 1,
     WIFI_CMD_CONNECT,
-    WIFI_CMD_DISCONNECT
+    WIFI_CMD_DISCONNECT,
+    WIFI_CMD_POWER_SET
 } wifi_cmd_type_t;
 
 typedef struct {
@@ -35,6 +36,7 @@ typedef struct {
 } wifi_cmd_msg_t;
 
 static bool wifi_initialized = false;
+static bool s_wifi_enabled = true;
 static bool wifi_scanning = false;
 static bool s_time_synced = false;
 static volatile wifi_status_t s_wifi_status = WIFI_STATUS_IDLE;
@@ -262,6 +264,22 @@ static void wifi_core0_worker_task(void *pvParameters)
                 strcpy(s_ip_addr, "0.0.0.0");
                 s_connected_ssid[0] = '\0';
             }
+            else if (cmd.type == WIFI_CMD_POWER_SET) {
+                if (cmd.password[0] == '1') {
+                    ESP_LOGI(TAG, "Core 0 powering on Wi-Fi radio...");
+                    esp_wifi_start();
+                    wifi_controller_set_log("WI-FI RADIO :: ENABLED");
+                    wifi_controller_auto_connect();
+                } else {
+                    ESP_LOGI(TAG, "Core 0 powering off Wi-Fi radio...");
+                    esp_wifi_disconnect();
+                    esp_wifi_stop();
+                    s_wifi_status = WIFI_STATUS_IDLE;
+                    strcpy(s_ip_addr, "0.0.0.0");
+                    s_connected_ssid[0] = '\0';
+                    wifi_controller_set_log("WI-FI RADIO :: DISABLED");
+                }
+            }
         }
     }
 }
@@ -340,6 +358,7 @@ esp_err_t wifi_controller_init(void)
 
 bool wifi_controller_start_scan(void)
 {
+    if (!s_wifi_enabled) return false;
     if (!wifi_initialized) {
         wifi_controller_init();
     }
@@ -366,7 +385,7 @@ bool wifi_controller_is_scanning(void)
 
 bool wifi_controller_connect(const char *ssid, const char *password)
 {
-    if (!wifi_initialized || !ssid) return false;
+    if (!s_wifi_enabled || !wifi_initialized || !ssid) return false;
 
     wifi_cmd_msg_t cmd;
     cmd.type = WIFI_CMD_CONNECT;
@@ -387,17 +406,38 @@ void wifi_controller_disconnect(void)
     xQueueSend(q_wifi_cmd, &cmd, 0);
 }
 
+bool wifi_controller_is_enabled(void)
+{
+    return s_wifi_enabled;
+}
+
+void wifi_controller_set_enabled(bool enabled)
+{
+    if (s_wifi_enabled == enabled) return;
+    s_wifi_enabled = enabled;
+    if (q_wifi_cmd) {
+        wifi_cmd_msg_t cmd;
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = WIFI_CMD_POWER_SET;
+        cmd.password[0] = enabled ? '1' : '0';
+        xQueueSend(q_wifi_cmd, &cmd, 0);
+    }
+}
+
 wifi_status_t wifi_controller_get_status(void)
 {
+    if (!s_wifi_enabled) return WIFI_STATUS_IDLE;
     return s_wifi_status;
 }
 
 const char *wifi_controller_get_ip(void)
 {
+    if (!s_wifi_enabled) return "0.0.0.0";
     return s_ip_addr;
 }
 
 const char *wifi_controller_get_connected_ssid(void)
 {
+    if (!s_wifi_enabled) return "";
     return s_connected_ssid;
 }

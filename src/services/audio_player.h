@@ -22,6 +22,13 @@ typedef enum {
 esp_err_t audio_player_init(void);
 
 /**
+ * @brief Play a synthetic sine wave tone through I2S speaker (for alarms, beeps, chimes)
+ * @param freq_hz Frequency in Hz (e.g. 880, 1046, 1318)
+ * @param duration_ms Duration in milliseconds (e.g. 150, 500)
+ */
+esp_err_t audio_player_play_tone(uint32_t freq_hz, uint32_t duration_ms);
+
+/**
  * @brief Start playing audio file (.wav or .mp3)
  * @param filepath Full path to file (e.g. "/sdcard/music/test.mp3")
  */

@@ -5,6 +5,7 @@
  */
 
 #include "gui_system_page.h"
+#include "ui_frame.h"
 #include "lvgl.h"
 #include <stdio.h>
 
@@ -46,10 +47,20 @@ static lv_obj_t *lbl_tasks_val = NULL;
 static lv_obj_t *lbl_wifi_val = NULL;
 static lv_obj_t *lbl_ip_val = NULL;
 
-static void btn_back_click_cb(lv_event_t *e)
+static void on_system_page_close(void)
 {
-    (void)e;
-    gui_system_page_close();
+    if (timer_telemetry) {
+        lv_timer_del(timer_telemetry);
+        timer_telemetry = NULL;
+    }
+    view_system = NULL;
+    bar_psram = NULL;
+    bar_sram = NULL;
+    lbl_psram_val = NULL;
+    lbl_sram_val = NULL;
+    lbl_tasks_val = NULL;
+    lbl_wifi_val = NULL;
+    lbl_ip_val = NULL;
 }
 
 static void update_telemetry_data(void)
@@ -177,76 +188,21 @@ void gui_system_page_open(void)
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
 
-    /* Full-screen container over the screen */
-    view_system = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(view_system, 480, 320);
-    lv_obj_set_pos(view_system, 0, 0);
-    lv_obj_set_style_bg_color(view_system, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(view_system, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(view_system, 0, 0);
-    lv_obj_set_style_pad_all(view_system, 0, 0);
-    lv_obj_clear_flag(view_system, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "SYS DIAG",
+        .breadcrumb = "MISSION CONTROL // TELEMETRY",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_system_page_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    view_system = frame->root;
 
     /* ====================================================================
-     * HEADER: RETURN BUTTON & TITLE
+     * PANEL 1: CPU & KERNEL (Top Left: x=0, y=0, w=224, h=108)
      * ==================================================================== */
-
-    /* Back button */
-    lv_obj_t *btn_back = lv_btn_create(view_system);
-    lv_obj_set_size(btn_back, 110, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_MINT, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_set_style_pad_all(btn_back, 0, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_back_click_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< LAUNCHER");
-    lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_back, COLOR_MINT, 0);
-    lv_obj_center(lbl_back);
-
-    /* Header title */
-    lv_obj_t *lbl_title = lv_label_create(view_system);
-    lv_label_set_text(lbl_title, "SYSTEM TELEMETRY\n// HARDWARE MONITOR");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_title, 125, 4);
-    lv_obj_set_width(lbl_title, 250);
-    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
-
-    /* Right status badge */
-    lv_obj_t *badge = lv_obj_create(view_system);
-    lv_obj_set_size(badge, 90, 24);
-    lv_obj_set_pos(badge, 380, 10);
-    lv_obj_set_style_bg_color(badge, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(badge, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(badge, 1, 0);
-    lv_obj_set_style_radius(badge, 2, 0);
-    lv_obj_set_style_pad_all(badge, 0, 0);
-    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *lbl_badge = lv_label_create(badge);
-    lv_label_set_text(lbl_badge, "D350 NODE");
-    lv_obj_set_style_text_font(lbl_badge, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_badge, COLOR_MINT, 0);
-    lv_obj_center(lbl_badge);
-
-    /* Separator line */
-    lv_obj_t *line_hdr = lv_obj_create(view_system);
-    lv_obj_set_size(line_hdr, 460, 1);
-    lv_obj_set_pos(line_hdr, 10, 42);
-    lv_obj_set_style_bg_color(line_hdr, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(line_hdr, 0, 0);
-    lv_obj_clear_flag(line_hdr, LV_OBJ_FLAG_SCROLLABLE);
-
-    /* ====================================================================
-     * PANEL 1: CPU & KERNEL (Top Left: x=10, y=48, w=224, h=126)
-     * ==================================================================== */
-    lv_obj_t *p1 = create_panel(view_system, 10, 48, 224, 126, "[01] PROCESSOR & CORE", COLOR_ORANGE);
+    lv_obj_t *p1 = create_panel(frame->content, 0, 0, 224, 108, "[01] PROCESSOR & CORE", COLOR_ORANGE);
 
     lv_obj_t *lbl_chip = lv_label_create(p1);
     char chip_str[64];
@@ -281,9 +237,9 @@ void gui_system_page_open(void)
     lv_obj_set_pos(lbl_aff, 0, 86);
 
     /* ====================================================================
-     * PANEL 2: MEMORY SUBSYSTEM (Top Right: x=246, y=48, w=224, h=126)
+     * PANEL 2: MEMORY SUBSYSTEM (Top Right: x=236, y=0, w=224, h=108)
      * ==================================================================== */
-    lv_obj_t *p2 = create_panel(view_system, 246, 48, 224, 126, "[02] MEMORY SUBSYSTEM", COLOR_MINT);
+    lv_obj_t *p2 = create_panel(frame->content, 236, 0, 224, 108, "[02] MEMORY SUBSYSTEM", COLOR_MINT);
 
     lbl_psram_val = lv_label_create(p2);
     lv_label_set_text(lbl_psram_val, "PSRAM: 8.0 MB Loading...");
@@ -318,9 +274,9 @@ void gui_system_page_open(void)
     lv_obj_set_pos(lbl_cache, 0, 84);
 
     /* ====================================================================
-     * PANEL 3: STORAGE & FLASH (Bottom Left: x=10, y=180, w=224, h=130)
+     * PANEL 3: STORAGE & FLASH (Bottom Left: x=0, y=114, w=224, h=108)
      * ==================================================================== */
-    lv_obj_t *p3 = create_panel(view_system, 10, 180, 224, 130, "[03] STORAGE & FLASH", COLOR_ORANGE);
+    lv_obj_t *p3 = create_panel(frame->content, 0, 114, 224, 108, "[03] STORAGE & FLASH", COLOR_ORANGE);
 
     lv_obj_t *lbl_flash = lv_label_create(p3);
     char flash_str[64];
@@ -362,9 +318,9 @@ void gui_system_page_open(void)
     lv_obj_set_pos(lbl_lcd, 0, 86);
 
     /* ====================================================================
-     * PANEL 4: WIRELESS & NETWORK (Bottom Right: x=246, y=180, w=224, h=130)
+     * PANEL 4: WIRELESS & NETWORK (Bottom Right: x=236, y=114, w=224, h=108)
      * ==================================================================== */
-    lv_obj_t *p4 = create_panel(view_system, 246, 180, 224, 130, "[04] WIRELESS & NETWORK", COLOR_MINT);
+    lv_obj_t *p4 = create_panel(frame->content, 236, 114, 224, 108, "[04] WIRELESS & NETWORK", COLOR_MINT);
 
     lbl_wifi_val = lv_label_create(p4);
     lv_label_set_text(lbl_wifi_val, "STATUS: QUERYING...");
@@ -407,21 +363,8 @@ void gui_system_page_open(void)
 
 void gui_system_page_close(void)
 {
-    if (timer_telemetry) {
-        lv_timer_del(timer_telemetry);
-        timer_telemetry = NULL;
-    }
-
     if (view_system) {
-        lv_obj_del(view_system);
-        view_system = NULL;
+        ui_frame_pop();
     }
-
-    bar_psram = NULL;
-    bar_sram = NULL;
-    lbl_psram_val = NULL;
-    lbl_sram_val = NULL;
-    lbl_tasks_val = NULL;
-    lbl_wifi_val = NULL;
-    lbl_ip_val = NULL;
 }
+

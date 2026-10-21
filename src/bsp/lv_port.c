@@ -381,7 +381,7 @@ static void lvgl_port_task(void *arg)
             task_delay_ms = lv_timer_handler();
             lvgl_port_unlock();
         }
-        if ((task_delay_ms > lvgl_port_ctx.task_max_sleep_ms) || (1 == task_delay_ms)) {
+        if (task_delay_ms > (uint32_t)lvgl_port_ctx.task_max_sleep_ms) {
             task_delay_ms = lvgl_port_ctx.task_max_sleep_ms;
         } else if (task_delay_ms < 1) {
             task_delay_ms = 1;
@@ -596,7 +596,6 @@ static void lvgl_port_touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *
             data->point.x = touchpad_x[0];
             data->point.y = touchpad_y[0];
             data->state = LV_INDEV_STATE_PRESSED;
-            esp_rom_printf("Touchpad pressed: x=%d, y=%d\n", data->point.x, data->point.y);
         } else {
             data->state = LV_INDEV_STATE_RELEASED;
         }

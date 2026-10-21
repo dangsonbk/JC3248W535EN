@@ -37,6 +37,8 @@ static const char *TAG = "DEMO_LVGL";
 #include "gui_boot_screen.h"
 #include "screenshot_service.h"
 #include "audio_player.h"
+#include "clock_service.h"
+#include "ui_frame.h"
 
 void setup();
 
@@ -87,9 +89,11 @@ void setup()
   logSection("Initialize panel device");
   // ESP_LOGI(TAG, "Initialize panel device");
   lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-  port_cfg.task_affinity = 1; // Pin LVGL task to Core 1 (leaving Core 0 for system/wifi)
-  port_cfg.task_priority = 5;
-  port_cfg.task_stack = 8192; // Ensure sufficient stack for VFS, file I/O and LVGL modals
+  port_cfg.task_affinity = 1;       // Pin LVGL task to Core 1 (leaving Core 0 for system/wifi/audio)
+  port_cfg.task_priority = 6;       // Elevated priority above background workers
+  port_cfg.task_stack = 8192;       // Ensure sufficient stack for VFS, file I/O and LVGL modals
+  port_cfg.task_max_sleep_ms = 10;  // Cap idle sleep to 10ms (eliminates sluggish 500ms touch delay)
+  port_cfg.timer_period_ms = 2;     // 2ms high precision tick timer
 
   bsp_display_cfg_t cfg = {
       .lvgl_port_cfg = port_cfg,
@@ -112,6 +116,9 @@ void setup()
   /* Lock the mutex due to the LVGL APIs are not thread-safe */
   bsp_display_lock(0);
 
+  /* Initialize Centralized UI Frame & Navigation Stack */
+  ui_frame_init();
+
   /* Initialize Display & Sleep Subsystem (loads brightness & sleep watchdog) */
   gui_display_settings_init();
 
@@ -132,6 +139,9 @@ void setup()
 
   /* Initialize Screenshot Service (Serial command + Touch hold) */
   screenshot_service_init();
+
+  /* Initialize Clock & Alarm subsystem (NTP sync, world time, background alarm monitor) */
+  clock_service_init();
 
   /* Start Cyberpunk Root Access Boot Sequence, then load Launcher */
   gui_boot_screen_start(on_boot_complete);

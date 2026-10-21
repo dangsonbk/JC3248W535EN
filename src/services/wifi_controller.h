@@ -55,6 +55,12 @@ bool wifi_controller_connect(const char *ssid, const char *password);
 /* Disconnect from current Wi-Fi network */
 void wifi_controller_disconnect(void);
 
+/* Check if Wi-Fi radio is enabled */
+bool wifi_controller_is_enabled(void);
+
+/* Enable or disable Wi-Fi radio power */
+void wifi_controller_set_enabled(bool enabled);
+
 /* Get current Wi-Fi connection status */
 wifi_status_t wifi_controller_get_status(void);
 

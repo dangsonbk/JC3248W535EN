@@ -8,6 +8,7 @@
 #include "weather_service.h"
 #include "gui_keyboard.h"
 #include "wifi_controller.h"
+#include "ui_frame.h"
 #include "lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -22,7 +23,7 @@ extern const lv_font_t font_orbitron_16;
 #define COLOR_ORANGE        lv_color_hex(0xFF5A2A)
 #define COLOR_MINT          lv_color_hex(0xC2DEC9)
 #define COLOR_TEXT_WHITE    lv_color_hex(0xF0F5F1)
-#define COLOR_TEXT_MUTED    lv_color_hex(0x6E8376)
+#define COLOR_TEXT_MUTED    lv_color_hex(0xA2B7AA)
 #define COLOR_BORDER_LINE   lv_color_hex(0x28332C)
 
 static lv_obj_t *view_weather_settings = NULL;
@@ -31,12 +32,6 @@ static lv_obj_t *lbl_active_geo = NULL;
 static lv_obj_t *lbl_unit_desc = NULL;
 static lv_obj_t *sw_unit = NULL;
 static lv_timer_t *timer_search_poll = NULL;
-
-static void btn_back_click_cb(lv_event_t *e)
-{
-    (void)e;
-    gui_weather_settings_close();
-}
 
 static void sw_unit_changed_cb(lv_event_t *e)
 {
@@ -143,58 +138,44 @@ static void btn_search_open_cb(lv_event_t *e)
     gui_input_dialog_set_status("TYPE SECTOR NAME AND PRESS SEARCH OR ENTER");
 }
 
+static void on_weather_settings_close(void)
+{
+    gui_input_dialog_close();
+    if (timer_search_poll) {
+        lv_timer_del(timer_search_poll);
+        timer_search_poll = NULL;
+    }
+    view_weather_settings = NULL;
+    lbl_active_city = NULL;
+    lbl_active_geo = NULL;
+    lbl_unit_desc = NULL;
+    sw_unit = NULL;
+}
+
 void gui_weather_settings_open(lv_obj_t *parent)
 {
+    (void)parent;
     if (view_weather_settings) return;
 
     const weather_data_t *w = weather_service_get_data();
 
-    view_weather_settings = lv_obj_create(parent ? parent : lv_scr_act());
-    lv_obj_set_size(view_weather_settings, 480, 320);
-    lv_obj_set_pos(view_weather_settings, 0, 0);
-    lv_obj_set_style_bg_color(view_weather_settings, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(view_weather_settings, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(view_weather_settings, 0, 0);
-    lv_obj_set_style_pad_all(view_weather_settings, 0, 0);
-    lv_obj_clear_flag(view_weather_settings, LV_OBJ_FLAG_SCROLLABLE);
-
-    /* Header Back Button */
-    lv_obj_t *btn_back = lv_btn_create(view_weather_settings);
-    lv_obj_set_size(btn_back, 110, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_MINT, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_back_click_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_b = lv_label_create(btn_back);
-    lv_label_set_text(lbl_b, "< SETTINGS");
-    lv_obj_set_style_text_font(lbl_b, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_b, COLOR_MINT, 0);
-    lv_obj_center(lbl_b);
-
-    lv_obj_t *lbl_hdr = lv_label_create(view_weather_settings);
-    lv_label_set_text(lbl_hdr, "ATMOSPHERE CONFIG // 09");
-    lv_obj_set_style_text_font(lbl_hdr, &font_orbitron_16, 0);
-    lv_obj_set_style_text_color(lbl_hdr, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_hdr, 134, 6);
-
-    /* Separator line */
-    lv_obj_t *line_hdr = lv_obj_create(view_weather_settings);
-    lv_obj_set_size(line_hdr, 460, 1);
-    lv_obj_set_pos(line_hdr, 10, 42);
-    lv_obj_set_style_bg_color(line_hdr, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(line_hdr, 0, 0);
-    lv_obj_clear_flag(line_hdr, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "METEO",
+        .breadcrumb = "ATMOSPHERE CONFIG // SECTOR",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_weather_settings_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    view_weather_settings = frame->root;
 
     /* ====================================================================
      * SECTION 1: TEMPERATURE SCALE TOGGLE (°C / °F)
      * ==================================================================== */
-    lv_obj_t *p_unit = lv_obj_create(view_weather_settings);
-    lv_obj_set_size(p_unit, 460, 72);
-    lv_obj_set_pos(p_unit, 10, 52);
+    lv_obj_t *p_unit = lv_obj_create(frame->content);
+    lv_obj_set_size(p_unit, 460, 68);
+    lv_obj_set_pos(p_unit, 0, 0);
     lv_obj_set_style_bg_color(p_unit, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(p_unit, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(p_unit, 1, 0);
@@ -216,10 +197,11 @@ void gui_weather_settings_open(lv_obj_t *parent)
 
     /* Switch toggle */
     sw_unit = lv_switch_create(p_unit);
-    lv_obj_set_size(sw_unit, 54, 26);
-    lv_obj_align(sw_unit, LV_ALIGN_RIGHT_MID, 0, 4);
+    lv_obj_set_size(sw_unit, 50, 24);
+    lv_obj_align(sw_unit, LV_ALIGN_RIGHT_MID, 0, 2);
     lv_obj_set_style_bg_color(sw_unit, lv_color_hex(0x28332C), 0);
     lv_obj_set_style_bg_color(sw_unit, COLOR_ORANGE, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_ext_click_area(sw_unit, 10);
     if (w->is_fahrenheit) {
         lv_obj_add_state(sw_unit, LV_STATE_CHECKED);
     } else {
@@ -230,9 +212,9 @@ void gui_weather_settings_open(lv_obj_t *parent)
     /* ====================================================================
      * SECTION 2: SECTOR CITY SEARCH
      * ==================================================================== */
-    lv_obj_t *p_city = lv_obj_create(view_weather_settings);
-    lv_obj_set_size(p_city, 460, 175);
-    lv_obj_set_pos(p_city, 10, 134);
+    lv_obj_t *p_city = lv_obj_create(frame->content);
+    lv_obj_set_size(p_city, 460, 150);
+    lv_obj_set_pos(p_city, 0, 72);
     lv_obj_set_style_bg_color(p_city, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(p_city, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(p_city, 1, 0);
@@ -253,7 +235,7 @@ void gui_weather_settings_open(lv_obj_t *parent)
     lv_label_set_text(lbl_active_city, c_buf);
     lv_obj_set_style_text_font(lbl_active_city, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_active_city, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_active_city, 0, 24);
+    lv_obj_set_pos(lbl_active_city, 0, 22);
 
     lbl_active_geo = lv_label_create(p_city);
     char g_buf[64];
@@ -261,12 +243,12 @@ void gui_weather_settings_open(lv_obj_t *parent)
     lv_label_set_text(lbl_active_geo, g_buf);
     lv_obj_set_style_text_font(lbl_active_geo, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_active_geo, COLOR_TEXT_MUTED, 0);
-    lv_obj_set_pos(lbl_active_geo, 0, 44);
+    lv_obj_set_pos(lbl_active_geo, 0, 42);
 
     /* Search Action Button */
     lv_obj_t *btn_search = lv_btn_create(p_city);
-    lv_obj_set_size(btn_search, 260, 36);
-    lv_obj_set_pos(btn_search, 0, 72);
+    lv_obj_set_size(btn_search, 280, 32);
+    lv_obj_set_pos(btn_search, 0, 68);
     lv_obj_set_style_bg_color(btn_search, COLOR_ORANGE, 0);
     lv_obj_set_style_radius(btn_search, 2, 0);
     lv_obj_clear_flag(btn_search, LV_OBJ_FLAG_SCROLLABLE);
@@ -283,7 +265,7 @@ void gui_weather_settings_open(lv_obj_t *parent)
     lv_label_set_text(lbl_guide, "GLOBAL SATELLITE NETWORK POWERED BY OPEN-METEO API.\nENTER ANY GLOBAL CITY, CAPITAL, OR REGION.");
     lv_obj_set_style_text_font(lbl_guide, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_guide, COLOR_TEXT_MUTED, 0);
-    lv_obj_set_pos(lbl_guide, 0, 120);
+    lv_obj_set_pos(lbl_guide, 0, 108);
 }
 
 void gui_weather_settings_close(void)
@@ -294,7 +276,7 @@ void gui_weather_settings_close(void)
         timer_search_poll = NULL;
     }
     if (view_weather_settings) {
-        lv_obj_del(view_weather_settings);
-        view_weather_settings = NULL;
+        ui_frame_pop();
     }
 }
+

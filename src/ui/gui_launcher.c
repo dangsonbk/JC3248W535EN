@@ -24,7 +24,7 @@ extern const lv_font_t font_orbitron_38;
 #define COLOR_MINT lv_color_hex(0xC2DEC9)        // Pale sage mint green
 #define COLOR_MINT_DARK lv_color_hex(0x2E3F35)   // Deep sage text
 #define COLOR_TEXT_WHITE lv_color_hex(0xF0F5F1)  // Crisp technical off-white
-#define COLOR_TEXT_MUTED lv_color_hex(0x6E8376)  // Coordinate green-gray
+#define COLOR_TEXT_MUTED lv_color_hex(0xA2B7AA)  // Bright technical sage-silver (high contrast)
 #define COLOR_BORDER_LINE lv_color_hex(0x28332C) // Structural border lines
 #define COLOR_FOOTER_BG lv_color_hex(0x0C0E0D)   // Ultra dark footer
 
@@ -238,12 +238,12 @@ static const card_meta_t cards_data[] = {
      .is_orange = true,
      .is_mint = false,
      .border_hex = 0},
-    {.tag = "RECON // 02",
-     .icon = LV_SYMBOL_GPS,
-     .number = "34",
-     .title = "Surface Nav",
-     .sub = "RADAR MAPPING",
-     .stat = LV_SYMBOL_BULLET " 75 SECTORS",
+    {.tag = "CLOCK // 02",
+     .icon = LV_SYMBOL_BELL,
+     .number = "TIME",
+     .title = "Clock & Alarm",
+     .sub = "WORLD CHIME",
+     .stat = LV_SYMBOL_BULLET " NTP SYNC",
      .is_orange = false,
      .is_mint = true,
      .border_hex = 0},
@@ -287,6 +287,7 @@ static const card_meta_t cards_data[] = {
 #include "gui_settings_page.h"
 #include "gui_system_page.h"
 #include "gui_file_explorer.h"
+#include "gui_clock_page.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include <string.h>
@@ -342,6 +343,8 @@ static void card_click_event_cb(lv_event_t *e) {
     gui_weather_page_open();
   } else if (meta && strcmp(meta->number, "DIR") == 0) {
     gui_file_explorer_open(lv_scr_act());
+  } else if (meta && (strcmp(meta->tag, "CLOCK // 02") == 0 || strcmp(meta->tag, "RECON // 02") == 0)) {
+    gui_clock_page_open(NULL);
   }
 }
 

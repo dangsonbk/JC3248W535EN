@@ -10,7 +10,11 @@
 #include "gui_storage_page.h"
 #include "gui_about_page.h"
 #include "gui_keyboard.h"
+#include "gui_general_settings.h"
+#include "gui_power_settings.h"
+#include "gui_clock_settings.h"
 #include "wifi_controller.h"
+#include "ui_frame.h"
 #include "lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +31,7 @@ extern const lv_font_t font_orbitron_24;
 #define COLOR_ORANGE_DARK   lv_color_hex(0x9E3416)
 #define COLOR_MINT          lv_color_hex(0xC2DEC9)
 #define COLOR_TEXT_WHITE    lv_color_hex(0xF0F5F1)
-#define COLOR_TEXT_MUTED    lv_color_hex(0x6E8376)
+#define COLOR_TEXT_MUTED    lv_color_hex(0xA2B7AA)
 #define COLOR_BORDER_LINE   lv_color_hex(0x28332C)
 
 static lv_obj_t *view_settings = NULL;
@@ -53,14 +57,14 @@ typedef struct {
 } setting_item_t;
 
 static const setting_item_t settings_grid[10] = {
-    {1,  "01", LV_SYMBOL_WIFI,        "WI-FI",    "SCAN/CONNECT", true},
-    {2,  "02", LV_SYMBOL_IMAGE,       "DISPLAY",  "PWM / SLEEP",  true},
-    {3,  "03", LV_SYMBOL_VOLUME_MAX,  "AUDIO",    "SPEAKER OK",   false},
-    {4,  "04", LV_SYMBOL_SHUFFLE,     "BLE",      "STANDBY",      true},
-    {5,  "05", LV_SYMBOL_DRIVE,       "STORAGE",  "FLASH / SD",   true},
-    {6,  "06", LV_SYMBOL_POWER,       "POWER",    "ACTIVE 240M",  true},
-    {7,  "07", LV_SYMBOL_BELL,        "CLOCK",    "UTC +7",       false},
-    {8,  "08", LV_SYMBOL_REFRESH,     "THEME",    "ORANGE/MINT",  false},
+    {1,  "01", LV_SYMBOL_SETTINGS,    "GENERAL",  "BOOT/NAME",    true},
+    {2,  "02", LV_SYMBOL_WIFI,        "WI-FI",    "SCAN/CONNECT", true},
+    {3,  "03", LV_SYMBOL_IMAGE,       "DISPLAY",  "SCR/SLEEP",    true},
+    {4,  "04", LV_SYMBOL_VOLUME_MAX,  "AUDIO",    "SPEAKER OK",   false},
+    {5,  "05", LV_SYMBOL_SHUFFLE,     "BLE",      "STANDBY",      true},
+    {6,  "06", LV_SYMBOL_DRIVE,       "STORAGE",  "FLASH / SD",   true},
+    {7,  "07", LV_SYMBOL_POWER,       "POWER",    "BAT / RESET",  true},
+    {8,  "08", LV_SYMBOL_BELL,        "CLOCK",    "TIME / ALARM", false},
     {9,  "09", LV_SYMBOL_IMAGE,       "METEO",    "CITY / UNIT",  true},
     {10, "10", LV_SYMBOL_SETTINGS,    "ABOUT",    "ESP32-S3",     false}
 };
@@ -295,17 +299,40 @@ static void btn_scan_click_cb(lv_event_t *e)
     timer_wifi_poll = lv_timer_create(wifi_poll_timer_cb, 150, NULL);
 }
 
-static void btn_wifi_back_cb(lv_event_t *e)
+static void on_wifi_subpage_close(void)
 {
-    (void)e;
     gui_input_dialog_close();
     if (timer_wifi_poll) {
         lv_timer_del(timer_wifi_poll);
         timer_wifi_poll = NULL;
     }
-    if (view_wifi) {
-        lv_obj_del(view_wifi);
-        view_wifi = NULL;
+    view_wifi = NULL;
+    lbl_wifi_status = NULL;
+    wifi_list_cont = NULL;
+    btn_wifi_scan = NULL;
+}
+
+static void sw_wifi_power_cb(lv_event_t *e)
+{
+    lv_obj_t *sw = lv_event_get_target(e);
+    bool en = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    wifi_controller_set_enabled(en);
+    if (!en) {
+        if (lbl_wifi_status) {
+            lv_label_set_text(lbl_wifi_status, "#ff5a2a [ RADIO DISABLED ]# WI-FI IS POWERED OFF");
+        }
+        if (wifi_list_cont) {
+            lv_obj_clean(wifi_list_cont);
+            lv_obj_t *lbl_off = lv_label_create(wifi_list_cont);
+            lv_label_set_text(lbl_off, "WI-FI RADIO IS TURNED OFF.\nTOGGLE SWITCH IN FOOTER TO ACTIVATE.");
+            lv_obj_set_style_text_font(lbl_off, &font_orbitron_12, 0);
+            lv_obj_set_style_text_color(lbl_off, COLOR_TEXT_MUTED, 0);
+            lv_obj_center(lbl_off);
+        }
+    } else {
+        if (lbl_wifi_status) {
+            lv_label_set_text(lbl_wifi_status, "#c2dec9 [ READY ]:# TAP SCAN, THEN TAP AP TO CONNECT");
+        }
     }
 }
 
@@ -313,72 +340,34 @@ static void open_wifi_scanner_subpage(void)
 {
     if (view_wifi) return;
 
-    view_wifi = lv_obj_create(view_settings);
-    lv_obj_set_size(view_wifi, 480, 320);
-    lv_obj_set_pos(view_wifi, 0, 0);
-    lv_obj_set_style_bg_color(view_wifi, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(view_wifi, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(view_wifi, 0, 0);
-    lv_obj_set_style_pad_all(view_wifi, 0, 0);
-    lv_obj_clear_flag(view_wifi, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "WI-FI",
+        .breadcrumb = "WI-FI MANAGER // NETWORK RECON",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_wifi_subpage_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    view_wifi = frame->root;
 
-    /* Back Button */
-    lv_obj_t *btn_b = lv_btn_create(view_wifi);
-    lv_obj_set_size(btn_b, 120, 28);
-    lv_obj_set_pos(btn_b, 10, 8);
-    lv_obj_set_style_bg_color(btn_b, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_b, COLOR_MINT, 0);
-    lv_obj_set_style_border_width(btn_b, 1, 0);
-    lv_obj_set_style_radius(btn_b, 2, 0);
-    lv_obj_clear_flag(btn_b, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_b, btn_wifi_back_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_b = lv_label_create(btn_b);
-    lv_label_set_text(lbl_b, "< SETTINGS");
-    lv_obj_set_style_text_font(lbl_b, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_b, COLOR_MINT, 0);
-    lv_obj_center(lbl_b);
-
-    /* Header Title */
-    lv_obj_t *lbl_t = lv_label_create(view_wifi);
-    lv_label_set_text(lbl_t, "WI-FI SCANNER\n// NETWORK RECON");
-    lv_obj_set_style_text_font(lbl_t, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_t, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_t, 125, 4);
-    lv_obj_set_width(lbl_t, 225);
-    lv_label_set_long_mode(lbl_t, LV_LABEL_LONG_WRAP);
-
-    /* Scan Action Button */
-    btn_wifi_scan = lv_btn_create(view_wifi);
-    lv_obj_set_size(btn_wifi_scan, 110, 28);
-    lv_obj_set_pos(btn_wifi_scan, 360, 8);
-    lv_obj_set_style_bg_color(btn_wifi_scan, COLOR_ORANGE, 0);
-    lv_obj_set_style_border_width(btn_wifi_scan, 0, 0);
-    lv_obj_set_style_radius(btn_wifi_scan, 2, 0);
-    lv_obj_clear_flag(btn_wifi_scan, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_wifi_scan, btn_scan_click_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_scan_txt = lv_label_create(btn_wifi_scan);
-    lv_label_set_text(lbl_scan_txt, "[+] SCAN");
-    lv_obj_set_style_text_font(lbl_scan_txt, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_scan_txt, lv_color_hex(0x111413), 0);
-    lv_obj_center(lbl_scan_txt);
-
-    /* Status Bar below Header */
-    lv_obj_t *status_bar = lv_obj_create(view_wifi);
+    /* Status Bar below Header inside content */
+    lv_obj_t *status_bar = lv_obj_create(frame->content);
     lv_obj_set_size(status_bar, 460, 24);
-    lv_obj_set_pos(status_bar, 10, 42);
+    lv_obj_set_pos(status_bar, 0, 0);
     lv_obj_set_style_bg_color(status_bar, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(status_bar, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(status_bar, 1, 0);
-    lv_obj_set_style_radius(btn_b, 2, 0);
+    lv_obj_set_style_radius(status_bar, 2, 0);
     lv_obj_set_style_pad_hor(status_bar, 8, 0);
     lv_obj_set_style_pad_ver(status_bar, 0, 0);
     lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
 
     lbl_wifi_status = lv_label_create(status_bar);
     lv_label_set_recolor(lbl_wifi_status, true);
-    if (wifi_controller_get_status() == WIFI_STATUS_CONNECTED) {
+    if (!wifi_controller_is_enabled()) {
+        lv_label_set_text(lbl_wifi_status, "#ff5a2a [ RADIO DISABLED ]# WI-FI IS POWERED OFF");
+    } else if (wifi_controller_get_status() == WIFI_STATUS_CONNECTED) {
         char buf[80];
         snprintf(buf, sizeof(buf), "#c2dec9 [ ONLINE ]# %s (%s)",
                  wifi_controller_get_connected_ssid(), wifi_controller_get_ip());
@@ -390,10 +379,10 @@ static void open_wifi_scanner_subpage(void)
     lv_obj_set_style_text_color(lbl_wifi_status, COLOR_TEXT_MUTED, 0);
     lv_obj_align(lbl_wifi_status, LV_ALIGN_LEFT_MID, 0, 0);
 
-    /* Scrollable Container for Discovered Networks */
-    wifi_list_cont = lv_obj_create(view_wifi);
-    lv_obj_set_size(wifi_list_cont, 460, 244);
-    lv_obj_set_pos(wifi_list_cont, 10, 70);
+    /* Scrollable Container for Discovered Networks inside content */
+    wifi_list_cont = lv_obj_create(frame->content);
+    lv_obj_set_size(wifi_list_cont, 460, 194);
+    lv_obj_set_pos(wifi_list_cont, 0, 28);
     lv_obj_set_style_bg_color(wifi_list_cont, COLOR_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(wifi_list_cont, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(wifi_list_cont, COLOR_BORDER_LINE, 0);
@@ -406,10 +395,47 @@ static void open_wifi_scanner_subpage(void)
 
     /* Initial hint */
     lv_obj_t *lbl_hint = lv_label_create(wifi_list_cont);
-    lv_label_set_text(lbl_hint, "READY FOR NETWORK RECONNAISSANCE.\nPRESS [+] SCAN BUTTON ABOVE.");
+    if (!wifi_controller_is_enabled()) {
+        lv_label_set_text(lbl_hint, "WI-FI RADIO IS TURNED OFF.\nTOGGLE SWITCH IN FOOTER TO ACTIVATE.");
+    } else {
+        lv_label_set_text(lbl_hint, "READY FOR NETWORK RECONNAISSANCE.\nPRESS [+] SCAN IN FOOTER BELOW.");
+    }
     lv_obj_set_style_text_font(lbl_hint, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_hint, COLOR_TEXT_MUTED, 0);
     lv_obj_center(lbl_hint);
+
+    /* Footer Action Area: Left: Wi-Fi Power Switch, Center-Right: Scan Action Button */
+    lv_obj_t *lbl_pwr = lv_label_create(frame->footer_action);
+    lv_label_set_text(lbl_pwr, "WI-FI:");
+    lv_obj_set_style_text_font(lbl_pwr, &font_orbitron_12, 0);
+    lv_obj_set_style_text_color(lbl_pwr, COLOR_MINT, 0);
+    lv_obj_align(lbl_pwr, LV_ALIGN_LEFT_MID, 0, 0);
+
+    lv_obj_t *sw_pwr = lv_switch_create(frame->footer_action);
+    lv_obj_set_size(sw_pwr, 48, 22);
+    lv_obj_align(sw_pwr, LV_ALIGN_LEFT_MID, 54, 0);
+    lv_obj_set_style_bg_color(sw_pwr, COLOR_ORANGE, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_ext_click_area(sw_pwr, 10);
+    if (wifi_controller_is_enabled()) {
+        lv_obj_add_state(sw_pwr, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(sw_pwr, sw_wifi_power_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    /* Scan Action Button in footer_action */
+    btn_wifi_scan = lv_btn_create(frame->footer_action);
+    lv_obj_set_size(btn_wifi_scan, 130, 26);
+    lv_obj_align(btn_wifi_scan, LV_ALIGN_LEFT_MID, 120, 0);
+    lv_obj_set_style_bg_color(btn_wifi_scan, COLOR_ORANGE, 0);
+    lv_obj_set_style_border_width(btn_wifi_scan, 0, 0);
+    lv_obj_set_style_radius(btn_wifi_scan, 2, 0);
+    lv_obj_clear_flag(btn_wifi_scan, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(btn_wifi_scan, btn_scan_click_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *lbl_scan_txt = lv_label_create(btn_wifi_scan);
+    lv_label_set_text(lbl_scan_txt, LV_SYMBOL_REFRESH " SCAN NETS");
+    lv_obj_set_style_text_font(lbl_scan_txt, &font_orbitron_12, 0);
+    lv_obj_set_style_text_color(lbl_scan_txt, lv_color_hex(0x111413), 0);
+    lv_obj_center(lbl_scan_txt);
 }
 
 /* ====================================================================
@@ -422,102 +448,75 @@ static void setting_grid_btn_click_cb(lv_event_t *e)
     if (!item) return;
 
     if (item->id == 1) {
+        /* Open General Settings Sub-page (Boot diagnostic screen toggle, Callsign) */
+        gui_general_settings_open(view_settings);
+    } else if (item->id == 2) {
         /* Open Wi-Fi Scanner Sub-page */
         open_wifi_scanner_subpage();
-    } else if (item->id == 2) {
-        /* Open Display & Sleep Settings Sub-page */
+    } else if (item->id == 3) {
+        /* Open Display & Screen Saver / Sleep Settings Sub-page */
         gui_display_settings_open(view_settings);
-    } else if (item->id == 5) {
+    } else if (item->id == 6) {
         /* Open Storage Explorer Sub-page */
         gui_storage_page_open(view_settings);
+    } else if (item->id == 7) {
+        /* Open Power Management Sub-page (Telemetry, Reboot) */
+        gui_power_settings_open(view_settings);
+    } else if (item->id == 8) {
+        /* Open Clock & Alarm Settings Sub-page */
+        gui_clock_settings_open(view_settings);
     } else if (item->id == 9) {
         /* Open Weather Settings Sub-page */
         gui_weather_settings_open(view_settings);
     } else if (item->id == 10) {
-        /* Open About & Mission Callsign Sub-page */
+        /* Open About Sub-page */
         gui_about_page_open(view_settings);
     }
+}
+
+static void on_settings_page_close(void)
+{
+    gui_weather_settings_close();
+    gui_input_dialog_close();
+    if (timer_connect_poll) {
+        lv_timer_del(timer_connect_poll);
+        timer_connect_poll = NULL;
+    }
+    if (timer_wifi_poll) {
+        lv_timer_del(timer_wifi_poll);
+        timer_wifi_poll = NULL;
+    }
+    view_wifi = NULL;
+    view_settings = NULL;
 }
 
 void gui_settings_page_open(void)
 {
     if (view_settings) return;
 
-    view_settings = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(view_settings, 480, 320);
-    lv_obj_set_pos(view_settings, 0, 0);
-    lv_obj_set_style_bg_color(view_settings, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(view_settings, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(view_settings, 0, 0);
-    lv_obj_set_style_pad_all(view_settings, 0, 0);
-    lv_obj_clear_flag(view_settings, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "SETTINGS",
+        .breadcrumb = "SYSTEM SETTINGS // HUD CONTROL",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_settings_page_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    view_settings = frame->root;
 
-    /* Top Left Back Button */
-    lv_obj_t *btn_back = lv_btn_create(view_settings);
-    lv_obj_set_size(btn_back, 110, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_ORANGE, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_settings_back_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< LAUNCHER");
-    lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_back, COLOR_ORANGE, 0);
-    lv_obj_center(lbl_back);
-
-    /* Center Header */
-    lv_obj_t *lbl_title = lv_label_create(view_settings);
-    lv_label_set_text(lbl_title, "SYSTEM SETTINGS\n// HUD CONTROL");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_title, 125, 4);
-    lv_obj_set_width(lbl_title, 245);
-    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
-
-    /* Top Right Mode Indicator Badge */
-    lv_obj_t *badge = lv_obj_create(view_settings);
-    lv_obj_set_size(badge, 90, 24);
-    lv_obj_set_pos(badge, 380, 10);
-    lv_obj_set_style_bg_color(badge, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(badge, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(badge, 1, 0);
-    lv_obj_set_style_radius(badge, 2, 0);
-    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *lbl_badge = lv_label_create(badge);
-    lv_label_set_text(lbl_badge, "5x2 GRID");
-    lv_obj_set_style_text_font(lbl_badge, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_badge, COLOR_MINT, 0);
-    lv_obj_center(lbl_badge);
-
-    /* Separator line */
-    lv_obj_t *line_hdr = lv_obj_create(view_settings);
-    lv_obj_set_size(line_hdr, 460, 1);
-    lv_obj_set_pos(line_hdr, 10, 42);
-    lv_obj_set_style_bg_color(line_hdr, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(line_hdr, 0, 0);
-    lv_obj_clear_flag(line_hdr, LV_OBJ_FLAG_SCROLLABLE);
-
-    /* 5x2 Cyberpunk HUD Grid (5 columns x 2 rows)
-     * Total width: 480 -> 10px margin on each side, 460px available.
-     * 5 buttons: 82px width, 12px column gap. 5 * 82 + 4 * 12 = 410 + 48 = 458px.
-     * 2 rows: 124px height, 10px row gap.
-     */
+    /* 5x2 Cyberpunk HUD Grid (5 columns x 2 rows) inside frame->content (460 x 224) */
     for (int i = 0; i < 10; i++) {
         const setting_item_t *item = &settings_grid[i];
         int col = i % 5;
         int row = i / 5;
 
-        lv_coord_t btn_x = 11 + col * (82 + 12);
-        lv_coord_t btn_y = 52 + row * (118 + 12);
+        lv_coord_t btn_x = col * 94;
+        lv_coord_t btn_y = row * 114;
 
-        lv_obj_t *btn = lv_btn_create(view_settings);
+        lv_obj_t *btn = lv_btn_create(frame->content);
         lv_obj_set_pos(btn, btn_x, btn_y);
-        lv_obj_set_size(btn, 82, 118);
+        lv_obj_set_size(btn, 84, 108);
         lv_obj_set_style_bg_color(btn, COLOR_PANEL_BG, 0);
         lv_obj_set_style_border_color(btn, (item->id == 1) ? COLOR_ORANGE : COLOR_BORDER_LINE, 0);
         lv_obj_set_style_border_width(btn, (item->id == 1) ? 2 : 1, 0);
@@ -526,10 +525,10 @@ void gui_settings_page_open(void)
         lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_event_cb(btn, setting_grid_btn_click_cb, LV_EVENT_CLICKED, (void *)item);
 
-        /* Sci-Fi Corner Triangle Accent (as in reference image) */
+        /* Sci-Fi Corner Triangle Accent */
         if (item->has_orange_corner) {
             lv_obj_t *corner_tag = lv_obj_create(btn);
-            lv_obj_set_size(corner_tag, 10, 10);
+            lv_obj_set_size(corner_tag, 8, 8);
             lv_obj_set_pos(corner_tag, 0, 0);
             lv_obj_set_style_bg_color(corner_tag, COLOR_ORANGE, 0);
             lv_obj_set_style_border_width(corner_tag, 0, 0);
@@ -537,7 +536,7 @@ void gui_settings_page_open(void)
             lv_obj_clear_flag(corner_tag, LV_OBJ_FLAG_SCROLLABLE);
         }
 
-        /* Module Code (e.g. "01", "02") */
+        /* Module Code */
         lv_obj_t *lbl_code = lv_label_create(btn);
         lv_label_set_text(lbl_code, item->code);
         lv_obj_set_style_text_font(lbl_code, &font_orbitron_12, 0);
@@ -575,22 +574,11 @@ static void btn_settings_back_cb(lv_event_t *e)
 
 void gui_settings_page_close(void)
 {
-    gui_weather_settings_close();
-    gui_input_dialog_close();
-    if (timer_connect_poll) {
-        lv_timer_del(timer_connect_poll);
-        timer_connect_poll = NULL;
-    }
-    if (timer_wifi_poll) {
-        lv_timer_del(timer_wifi_poll);
-        timer_wifi_poll = NULL;
-    }
     if (view_wifi) {
-        lv_obj_del(view_wifi);
-        view_wifi = NULL;
+        ui_frame_pop();
     }
     if (view_settings) {
-        lv_obj_del(view_settings);
-        view_settings = NULL;
+        ui_frame_pop();
     }
 }
+

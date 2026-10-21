@@ -6,6 +6,7 @@
  */
 
 #include "gui_weather_page.h"
+#include "ui_frame.h"
 #include "lvgl.h"
 #include "weather_icons.h"
 #include "weather_service.h"
@@ -44,9 +45,16 @@ static int16_t s_sync_angle = 0;
 static uint32_t s_sync_start_count = 0;
 static uint16_t s_sync_timeout_ticks = 0;
 
-static void btn_back_click_cb(lv_event_t *e) {
-  (void)e;
-  gui_weather_page_close();
+static void on_weather_page_close(void) {
+  if (timer_refresh) {
+    lv_timer_del(timer_refresh);
+    timer_refresh = NULL;
+  }
+  view_weather = NULL;
+  s_content_cont = NULL;
+  s_lbl_hdr_sync_time = NULL;
+  s_lbl_sync_icon = NULL;
+  s_lbl_sync_txt = NULL;
 }
 
 static void render_weather_content(void);
@@ -118,12 +126,12 @@ static void render_weather_content(void) {
   int current_min_of_day = ti.tm_hour * 60 + ti.tm_min;
 
   /* ====================================================================
-   * PANEL 1: CURRENT ATMOSPHERE (Top Left: 224x155)
+   * PANEL 1: CURRENT ATMOSPHERE (Top Left: 226x136)
    * ==================================================================== */
   char p1_title[64];
   snprintf(p1_title, sizeof(p1_title), "[01] SECTOR: %s", w->city_name);
   lv_obj_t *p1 =
-      create_sub_panel(s_content_cont, 10, 4, 224, 155, p1_title, COLOR_ORANGE);
+      create_sub_panel(s_content_cont, 0, 0, 226, 136, p1_title, COLOR_ORANGE);
 
   /* Giant Current Temperature */
   lv_obj_t *lbl_cur_temp = lv_label_create(p1);
@@ -133,7 +141,7 @@ static void render_weather_content(void) {
   lv_label_set_text(lbl_cur_temp, temp_str);
   lv_obj_set_style_text_font(lbl_cur_temp, &font_orbitron_38, 0);
   lv_obj_set_style_text_color(lbl_cur_temp, COLOR_ORANGE, 0);
-  lv_obj_set_pos(lbl_cur_temp, 4, 20);
+  lv_obj_set_pos(lbl_cur_temp, 4, 18);
 
   /* Degree Unit Symbol */
   lv_obj_t *lbl_unit = lv_label_create(p1);
@@ -142,7 +150,7 @@ static void render_weather_content(void) {
   lv_label_set_text(lbl_unit, u_str);
   lv_obj_set_style_text_font(lbl_unit, &font_orbitron_16, 0);
   lv_obj_set_style_text_color(lbl_unit, COLOR_TEXT_MUTED, 0);
-  lv_obj_set_pos(lbl_unit, 72, 24);
+  lv_obj_set_pos(lbl_unit, 72, 22);
 
   /* Weather Condition Icon (Hero) */
   lv_obj_t *img_w_ico = lv_img_create(p1);
@@ -150,15 +158,15 @@ static void render_weather_content(void) {
   lv_obj_set_style_img_recolor(img_w_ico,
                                weather_icon_get_color(w->weather_code), 0);
   lv_obj_set_style_img_recolor_opa(img_w_ico, LV_OPA_COVER, 0);
-  lv_img_set_zoom(img_w_ico, 340);
-  lv_obj_align(img_w_ico, LV_ALIGN_TOP_RIGHT, -6, 20);
+  lv_img_set_zoom(img_w_ico, 320);
+  lv_obj_align(img_w_ico, LV_ALIGN_TOP_RIGHT, -6, 18);
 
   /* Weather Condition Text */
   lv_obj_t *lbl_cond = lv_label_create(p1);
   lv_label_set_text(lbl_cond, w->condition_str);
   lv_obj_set_style_text_font(lbl_cond, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_cond, COLOR_TEXT_WHITE, 0);
-  lv_obj_set_pos(lbl_cond, 4, 68);
+  lv_obj_set_pos(lbl_cond, 4, 62);
 
   /* Max / Min line */
   lv_obj_t *lbl_hl = lv_label_create(p1);
@@ -169,7 +177,7 @@ static void render_weather_content(void) {
   lv_label_set_text(lbl_hl, hl_str);
   lv_obj_set_style_text_font(lbl_hl, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_hl, COLOR_MINT, 0);
-  lv_obj_set_pos(lbl_hl, 4, 88);
+  lv_obj_set_pos(lbl_hl, 4, 80);
 
   /* Atmospheric telemetry sub-data */
   lv_obj_t *lbl_substats = lv_label_create(p1);
@@ -179,7 +187,7 @@ static void render_weather_content(void) {
   lv_label_set_text(lbl_substats, sub_str);
   lv_obj_set_style_text_font(lbl_substats, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_substats, COLOR_TEXT_MUTED, 0);
-  lv_obj_set_pos(lbl_substats, 4, 108);
+  lv_obj_set_pos(lbl_substats, 4, 98);
 
   /* Coordinates */
   lv_obj_t *lbl_coords = lv_label_create(p1);
@@ -189,20 +197,20 @@ static void render_weather_content(void) {
   lv_label_set_text(lbl_coords, coord_str);
   lv_obj_set_style_text_font(lbl_coords, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_coords, COLOR_BORDER_LINE, 0);
-  lv_obj_set_pos(lbl_coords, 4, 126);
+  lv_obj_set_pos(lbl_coords, 4, 114);
 
   /* ====================================================================
-   * PANEL 2: SOLAR CYCLE DOME ARC (Top Right: 224x155)
+   * PANEL 2: SOLAR CYCLE DOME ARC (Top Right: 226x136)
    * Faithfully matching reference diagram (Sunrise / Sunset Arc with Sun, Moon
-   * & Directional Arrows)
+   * & Directional Indicators)
    * ==================================================================== */
-  lv_obj_t *p2 = create_sub_panel(s_content_cont, 246, 4, 224, 155,
+  lv_obj_t *p2 = create_sub_panel(s_content_cont, 234, 0, 226, 136,
                                   "[02] SOLAR CYCLE // DAYLIGHT", COLOR_MINT);
 
   /* Dome Arc */
   lv_obj_t *arc_solar = lv_arc_create(p2);
-  lv_obj_set_size(arc_solar, 154, 154);
-  lv_obj_set_pos(arc_solar, 28, 26);
+  lv_obj_set_size(arc_solar, 120, 120);
+  lv_obj_set_pos(arc_solar, 47, 32);
   lv_arc_set_angles(arc_solar, 180, 360);
   lv_arc_set_bg_angles(arc_solar, 180, 360);
   lv_obj_set_style_arc_width(arc_solar, 2, LV_PART_MAIN);
@@ -232,57 +240,72 @@ static void render_weather_content(void) {
     day_prog = 1.0f;
   }
 
-  /* Arc geometry: Center at (105, 103), Radius = 77 */
+  /* Arc geometry: Center at (107, 92), Radius = 60 */
   float angle_deg = 180.0f + day_prog * 180.0f;
   float angle_rad = angle_deg * 3.14159265f / 180.0f;
-  float cx = 105.0f;
-  float cy = 103.0f;
-  float r = 77.0f;
-  lv_coord_t sun_x = (lv_coord_t)roundf(cx + r * cosf(angle_rad)) - 10;
-  lv_coord_t sun_y = (lv_coord_t)roundf(cy + r * sinf(angle_rad)) - 10;
+  float cx = 107.0f;
+  float cy = 92.0f;
+  float r = 60.0f;
+  lv_coord_t sun_x = (lv_coord_t)roundf(cx + r * cosf(angle_rad)) - 7;
+  lv_coord_t sun_y = (lv_coord_t)roundf(cy + r * sinf(angle_rad)) - 7;
 
-  /* Real Glowing Sun Icon riding along the orbital arc */
-  lv_obj_t *sun_img = lv_img_create(p2);
-  lv_img_set_src(sun_img, &img_weather_sun);
-  lv_obj_set_style_img_recolor(sun_img,
-                               is_day ? COLOR_SUN_GOLD : COLOR_TEXT_MUTED, 0);
-  lv_obj_set_style_img_recolor_opa(sun_img, LV_OPA_COVER, 0);
-  lv_img_set_zoom(sun_img, 220); /* ~20x20 */
-  lv_obj_set_pos(sun_img, sun_x, sun_y);
+  /* Glowing Celestial Sun Marker riding precisely along orbital curve */
+  lv_obj_t *sun_dot = lv_obj_create(p2);
+  lv_obj_set_size(sun_dot, 14, 14);
+  lv_obj_set_pos(sun_dot, sun_x, sun_y);
+  lv_obj_set_style_radius(sun_dot, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(sun_dot, is_day ? COLOR_SUN_GOLD : lv_color_hex(0x667766), 0);
+  lv_obj_set_style_bg_opa(sun_dot, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_color(sun_dot, is_day ? COLOR_ORANGE : COLOR_BORDER_LINE, 0);
+  lv_obj_set_style_border_width(sun_dot, 2, 0);
+  lv_obj_set_style_shadow_width(sun_dot, 6, 0);
+  lv_obj_set_style_shadow_color(sun_dot, COLOR_SUN_GOLD, 0);
+  lv_obj_set_style_shadow_opa(sun_dot, is_day ? LV_OPA_80 : LV_OPA_30, 0);
+  lv_obj_set_style_pad_all(sun_dot, 0, 0);
+  lv_obj_clear_flag(sun_dot, LV_OBJ_FLAG_SCROLLABLE);
 
-  /* Center Moon Symbol (Crescent inside ring matching reference diagram) */
+  /* Inner White Core for high visibility glow */
+  lv_obj_t *sun_core = lv_obj_create(sun_dot);
+  lv_obj_set_size(sun_core, 4, 4);
+  lv_obj_set_style_radius(sun_core, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(sun_core, lv_color_white(), 0);
+  lv_obj_set_style_border_width(sun_core, 0, 0);
+  lv_obj_center(sun_core);
+  lv_obj_clear_flag(sun_core, LV_OBJ_FLAG_SCROLLABLE);
+
+  /* Center Moon Symbol */
   lv_obj_t *moon_img = lv_img_create(p2);
   lv_img_set_src(moon_img, &img_weather_moon);
   lv_obj_set_style_img_recolor(moon_img, is_day ? COLOR_MINT : COLOR_TEXT_WHITE,
                                0);
   lv_obj_set_style_img_recolor_opa(moon_img, LV_OPA_COVER, 0);
-  lv_obj_set_pos(moon_img, 93, 82);
+  lv_obj_set_pos(moon_img, 95, 70);
 
   /* Sunrise Block (Left) */
   lv_obj_t *sr_img = lv_img_create(p2);
   lv_img_set_src(sr_img, &img_weather_sunrise);
   lv_obj_set_style_img_recolor(sr_img, COLOR_MINT, 0);
   lv_obj_set_style_img_recolor_opa(sr_img, LV_OPA_COVER, 0);
-  lv_obj_set_pos(sr_img, 14, 96);
+  lv_obj_set_pos(sr_img, 10, 72);
 
   lv_obj_t *lbl_sr_time = lv_label_create(p2);
   lv_label_set_text(lbl_sr_time, w->sunrise_str);
   lv_obj_set_style_text_font(lbl_sr_time, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_sr_time, COLOR_TEXT_WHITE, 0);
-  lv_obj_set_pos(lbl_sr_time, 4, 124);
+  lv_obj_set_pos(lbl_sr_time, 2, 94);
 
   /* Sunset Block (Right) */
   lv_obj_t *ss_img = lv_img_create(p2);
   lv_img_set_src(ss_img, &img_weather_sunset);
   lv_obj_set_style_img_recolor(ss_img, COLOR_ORANGE, 0);
   lv_obj_set_style_img_recolor_opa(ss_img, LV_OPA_COVER, 0);
-  lv_obj_set_pos(ss_img, 178, 96);
+  lv_obj_set_pos(ss_img, 178, 72);
 
   lv_obj_t *lbl_ss_time = lv_label_create(p2);
   lv_label_set_text(lbl_ss_time, w->sunset_str);
   lv_obj_set_style_text_font(lbl_ss_time, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_ss_time, COLOR_TEXT_WHITE, 0);
-  lv_obj_set_pos(lbl_ss_time, 168, 124);
+  lv_obj_set_pos(lbl_ss_time, 164, 94);
 
   /* Daylight Cycle Subtitle */
   lv_obj_t *lbl_cycle_stat = lv_label_create(p2);
@@ -290,13 +313,13 @@ static void render_weather_content(void) {
   lv_obj_set_style_text_font(lbl_cycle_stat, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(lbl_cycle_stat,
                               is_day ? COLOR_MINT : COLOR_TEXT_MUTED, 0);
-  lv_obj_set_pos(lbl_cycle_stat, 64, 124);
+  lv_obj_set_pos(lbl_cycle_stat, 64, 108);
 
   /* ====================================================================
-   * PANEL 3: 4-DAY FORECAST MATRIX (Bottom: 460x102)
-   * Real dynamic dates (TODAY, +1D, +2D, +3D)
+   * PANEL 3: 4-DAY FORECAST MATRIX (Bottom: 460x84)
+   * Real dynamic dates (TODAY, +1D, +2D, +3D) with pure white icons
    * ==================================================================== */
-  lv_obj_t *p3 = create_sub_panel(s_content_cont, 10, 164, 460, 102,
+  lv_obj_t *p3 = create_sub_panel(s_content_cont, 0, 140, 460, 84,
                                   "[03] MULTI-DAY ATMOSPHERIC FORECAST MATRIX",
                                   COLOR_ORANGE);
 
@@ -305,8 +328,8 @@ static void render_weather_content(void) {
     const weather_forecast_day_t *fc = &w->forecast[i];
 
     lv_obj_t *card = lv_obj_create(p3);
-    lv_obj_set_size(card, 106, 74);
-    lv_obj_set_pos(card, 2 + i * 112, 20);
+    lv_obj_set_size(card, 106, 56);
+    lv_obj_set_pos(card, 4 + i * 111, 20);
     lv_obj_set_style_bg_color(card, COLOR_BG, 0);
     lv_obj_set_style_border_color(card, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -322,11 +345,10 @@ static void render_weather_content(void) {
                                 (i == 0) ? COLOR_ORANGE : COLOR_TEXT_WHITE, 0);
     lv_obj_align(lbl_d, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    /* Real Weather Icon */
+    /* Weather Icon - Changed to pure white as requested */
     lv_obj_t *img_i = lv_img_create(card);
     lv_img_set_src(img_i, weather_icon_get_dsc(fc->weather_code));
-    lv_obj_set_style_img_recolor(img_i,
-                                 weather_icon_get_color(fc->weather_code), 0);
+    lv_obj_set_style_img_recolor(img_i, lv_color_white(), 0);
     lv_obj_set_style_img_recolor_opa(img_i, LV_OPA_COVER, 0);
     lv_obj_align(img_i, LV_ALIGN_TOP_RIGHT, 0, 0);
 
@@ -339,7 +361,7 @@ static void render_weather_content(void) {
     lv_label_set_text(lbl_t, t_buf);
     lv_obj_set_style_text_font(lbl_t, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_t, COLOR_ORANGE, 0);
-    lv_obj_align(lbl_t, LV_ALIGN_LEFT_MID, 0, 4);
+    lv_obj_set_pos(lbl_t, 0, 18);
 
     /* Rain Probability */
     lv_obj_t *lbl_r = lv_label_create(card);
@@ -348,7 +370,7 @@ static void render_weather_content(void) {
     lv_label_set_text(lbl_r, r_buf);
     lv_obj_set_style_text_font(lbl_r, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_r, COLOR_TEXT_MUTED, 0);
-    lv_obj_align(lbl_r, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_pos(lbl_r, 0, 36);
   }
 }
 
@@ -396,56 +418,21 @@ void gui_weather_page_open(void) {
   /* Trigger background refresh */
   weather_service_fetch_async();
 
-  view_weather = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(view_weather, 480, 320);
-  lv_obj_set_pos(view_weather, 0, 0);
-  lv_obj_set_style_bg_color(view_weather, COLOR_BG, 0);
-  lv_obj_set_style_bg_opa(view_weather, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(view_weather, 0, 0);
-  lv_obj_set_style_pad_all(view_weather, 0, 0);
-  lv_obj_clear_flag(view_weather, LV_OBJ_FLAG_SCROLLABLE);
+  ui_page_config_t cfg = {
+      .title = "WEATHER",
+      .breadcrumb = "ATMOSPHERIC TELEMETRY",
+      .mode = UI_FRAME_DEFAULT,
+      .on_close = on_weather_page_close,
+      .user_data = NULL
+  };
+  ui_frame_t *frame = ui_frame_push(&cfg);
+  if (!frame) return;
+  view_weather = frame->root;
 
-  /* ====================================================================
-   * HEADER (y: 0 -> 42)
-   * ==================================================================== */
-  lv_obj_t *btn_back = lv_btn_create(view_weather);
-  lv_obj_set_size(btn_back, 110, 28);
-  lv_obj_set_pos(btn_back, 10, 8);
-  lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-  lv_obj_set_style_border_color(btn_back, COLOR_MINT, 0);
-  lv_obj_set_style_border_width(btn_back, 1, 0);
-  lv_obj_set_style_radius(btn_back, 2, 0);
-  lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(btn_back, btn_back_click_cb, LV_EVENT_CLICKED, NULL);
-
-  lv_obj_t *lbl_b = lv_label_create(btn_back);
-  lv_label_set_text(lbl_b, "< LAUNCHER");
-  lv_obj_set_style_text_font(lbl_b, &font_orbitron_12, 0);
-  lv_obj_set_style_text_color(lbl_b, COLOR_MINT, 0);
-  lv_obj_center(lbl_b);
-
-  lv_obj_t *lbl_hdr = lv_label_create(view_weather);
-  lv_label_set_text(lbl_hdr, "ATMOSPHERIC TELEMETRY");
-  lv_obj_set_style_text_font(lbl_hdr, &font_orbitron_12, 0);
-  lv_obj_set_style_text_color(lbl_hdr, COLOR_TEXT_WHITE, 0);
-  lv_obj_set_width(lbl_hdr, 250);
-  lv_label_set_long_mode(lbl_hdr, LV_LABEL_LONG_WRAP);
-  lv_obj_set_pos(lbl_hdr, 128, 4);
-
-  /* Last Sync Status Label */
-  s_lbl_hdr_sync_time = lv_label_create(view_weather);
-  char sync_init[48];
-  snprintf(sync_init, sizeof(sync_init), "SYNC: %s",
-           weather_service_get_last_sync_time());
-  lv_label_set_text(s_lbl_hdr_sync_time, sync_init);
-  lv_obj_set_style_text_font(s_lbl_hdr_sync_time, &font_orbitron_12, 0);
-  lv_obj_set_style_text_color(s_lbl_hdr_sync_time, COLOR_TEXT_MUTED, 0);
-  lv_obj_set_pos(s_lbl_hdr_sync_time, 128, 22);
-
-  /* Animated Refresh Button */
-  lv_obj_t *btn_ref = lv_btn_create(view_weather);
-  lv_obj_set_size(btn_ref, 80, 28);
-  lv_obj_set_pos(btn_ref, 390, 8);
+  /* Animated Refresh Button in frame->footer_action */
+  lv_obj_t *btn_ref = lv_btn_create(frame->footer_action);
+  lv_obj_set_size(btn_ref, 84, 26);
+  lv_obj_align(btn_ref, LV_ALIGN_LEFT_MID, 0, 0);
   lv_obj_set_style_bg_color(btn_ref, COLOR_PANEL_BG, 0);
   lv_obj_set_style_border_color(btn_ref, COLOR_ORANGE, 0);
   lv_obj_set_style_border_width(btn_ref, 1, 0);
@@ -459,7 +446,7 @@ void gui_weather_page_open(void) {
   lv_obj_set_style_text_color(s_lbl_sync_icon, COLOR_ORANGE, 0);
   lv_obj_set_style_transform_pivot_x(s_lbl_sync_icon, 6, 0);
   lv_obj_set_style_transform_pivot_y(s_lbl_sync_icon, 6, 0);
-  lv_obj_align(s_lbl_sync_icon, LV_ALIGN_LEFT_MID, -6, 0);
+  lv_obj_align(s_lbl_sync_icon, LV_ALIGN_LEFT_MID, -4, 0);
 
   s_lbl_sync_txt = lv_label_create(btn_ref);
   lv_label_set_text(s_lbl_sync_txt, "SYNC");
@@ -467,18 +454,20 @@ void gui_weather_page_open(void) {
   lv_obj_set_style_text_color(s_lbl_sync_txt, COLOR_ORANGE, 0);
   lv_obj_align(s_lbl_sync_txt, LV_ALIGN_LEFT_MID, 16, 0);
 
-  /* Separator line */
-  lv_obj_t *line_hdr = lv_obj_create(view_weather);
-  lv_obj_set_size(line_hdr, 460, 1);
-  lv_obj_set_pos(line_hdr, 10, 42);
-  lv_obj_set_style_bg_color(line_hdr, COLOR_BORDER_LINE, 0);
-  lv_obj_set_style_border_width(line_hdr, 0, 0);
-  lv_obj_clear_flag(line_hdr, LV_OBJ_FLAG_SCROLLABLE);
+  /* Last Sync Status Label beside button */
+  s_lbl_hdr_sync_time = lv_label_create(frame->footer_action);
+  char sync_init[48];
+  snprintf(sync_init, sizeof(sync_init), "SYNC: %s",
+           weather_service_get_last_sync_time());
+  lv_label_set_text(s_lbl_hdr_sync_time, sync_init);
+  lv_obj_set_style_text_font(s_lbl_hdr_sync_time, &font_orbitron_12, 0);
+  lv_obj_set_style_text_color(s_lbl_hdr_sync_time, COLOR_TEXT_MUTED, 0);
+  lv_obj_align(s_lbl_hdr_sync_time, LV_ALIGN_LEFT_MID, 94, 0);
 
-  /* Content container */
-  s_content_cont = lv_obj_create(view_weather);
-  lv_obj_set_size(s_content_cont, 480, 274);
-  lv_obj_set_pos(s_content_cont, 0, 44);
+  /* Content container inside frame->content */
+  s_content_cont = lv_obj_create(frame->content);
+  lv_obj_set_size(s_content_cont, 460, 224);
+  lv_obj_set_pos(s_content_cont, 0, 0);
   lv_obj_set_style_bg_opa(s_content_cont, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_width(s_content_cont, 0, 0);
   lv_obj_set_style_pad_all(s_content_cont, 0, 0);
@@ -492,16 +481,8 @@ void gui_weather_page_open(void) {
 }
 
 void gui_weather_page_close(void) {
-  if (timer_refresh) {
-    lv_timer_del(timer_refresh);
-    timer_refresh = NULL;
-  }
   if (view_weather) {
-    lv_obj_del(view_weather);
-    view_weather = NULL;
-    s_content_cont = NULL;
-    s_lbl_hdr_sync_time = NULL;
-    s_lbl_sync_icon = NULL;
-    s_lbl_sync_txt = NULL;
+    ui_frame_pop();
   }
 }
+

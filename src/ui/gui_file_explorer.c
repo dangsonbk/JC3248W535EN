@@ -1,4 +1,5 @@
 #include "gui_file_explorer.h"
+#include "ui_frame.h"
 #include "gui_storage_page.h"
 #include "audio_player.h"
 #include "media_decoder.h"
@@ -551,25 +552,23 @@ static void audio_timer_cb(lv_timer_t *t)
         active_bars = (int)((pos % 16) * 2);
     }
 
-    /* Animate waveform pill bars */
-    for (int i = 0; i < AUDIO_WAVE_BARS_COUNT; i++) {
-        if (s_wave_bars[i] && lv_obj_is_valid(s_wave_bars[i])) {
-            int h = s_wave_base_heights[i];
-            if (is_playing) {
+    /* Animate waveform pill bars only when playing */
+    if (is_playing) {
+        for (int i = 0; i < AUDIO_WAVE_BARS_COUNT; i++) {
+            if (s_wave_bars[i] && lv_obj_is_valid(s_wave_bars[i])) {
+                int h = s_wave_base_heights[i];
                 int delta = (rand() % 7) - 3;
                 h += delta;
                 if (h < 4) h = 4;
                 if (h > 38) h = 38;
-            }
-            lv_obj_set_height(s_wave_bars[i], h);
-            lv_obj_set_y(s_wave_bars[i], (46 - h) / 2);
+                lv_obj_set_height(s_wave_bars[i], h);
+                lv_obj_set_y(s_wave_bars[i], (46 - h) / 2);
 
-            if (i <= active_bars && is_playing) {
-                lv_obj_set_style_bg_color(s_wave_bars[i], lv_color_make(0xfa, 0xfa, 0xfa), 0);
-            } else if (i <= active_bars) {
-                lv_obj_set_style_bg_color(s_wave_bars[i], lv_color_make(0x88, 0x98, 0xaa), 0);
-            } else {
-                lv_obj_set_style_bg_color(s_wave_bars[i], lv_color_make(0x35, 0x3d, 0x4c), 0);
+                if (i <= active_bars) {
+                    lv_obj_set_style_bg_color(s_wave_bars[i], lv_color_make(0xfa, 0xfa, 0xfa), 0);
+                } else {
+                    lv_obj_set_style_bg_color(s_wave_bars[i], lv_color_make(0x35, 0x3d, 0x4c), 0);
+                }
             }
         }
     }
@@ -1337,9 +1336,8 @@ static void rescan_btn_click_cb(lv_event_t *e)
     lv_async_call(async_scan_and_render_cb, NULL);
 }
 
-static void btn_back_cb(lv_event_t *e)
+static void on_file_explorer_close(void)
 {
-    (void)e;
     audio_player_stop();
     media_decoder_close_mjpeg();
     s_audio_playing = false;
@@ -1354,62 +1352,35 @@ static void btn_back_cb(lv_event_t *e)
         lv_timer_del(s_video_timer);
         s_video_timer = NULL;
     }
-    if (s_view_exp) {
-        lv_obj_del(s_view_exp);
-        s_view_exp = NULL;
-        s_modal_popup = NULL;
-        s_file_list_cont = NULL;
-        s_btn_tab_int = NULL;
-        s_btn_tab_sd = NULL;
-        s_lbl_drive_info = NULL;
-    }
+    s_view_exp = NULL;
+    s_modal_popup = NULL;
+    s_file_list_cont = NULL;
+    s_btn_tab_int = NULL;
+    s_btn_tab_sd = NULL;
+    s_lbl_drive_info = NULL;
 }
 
 void gui_file_explorer_open(lv_obj_t *parent)
 {
+    (void)parent;
     if (s_view_exp) return;
     ESP_LOGI(TAG, "Opening File Explorer");
 
-    s_view_exp = lv_obj_create(parent ? parent : lv_scr_act());
-    lv_obj_set_size(s_view_exp, 480, 320);
-    lv_obj_set_pos(s_view_exp, 0, 0);
-    lv_obj_set_style_bg_color(s_view_exp, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(s_view_exp, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(s_view_exp, 0, 0);
-    lv_obj_set_style_pad_all(s_view_exp, 0, 0);
-    lv_obj_clear_flag(s_view_exp, LV_OBJ_FLAG_SCROLLABLE);
+    ui_frame_config_t cfg = {
+        .title = "EXPLORER",
+        .category = "MEDIA REPOSITORY",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_file_explorer_close,
+        .user_data = NULL
+    };
+    ui_frame_handle_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    s_view_exp = frame->root;
 
-    /* Back Button */
-    lv_obj_t *btn_back = lv_btn_create(s_view_exp);
-    lv_obj_set_size(btn_back, 110, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_ORANGE, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_back_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< LAUNCHER");
-    lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_back, COLOR_ORANGE, 0);
-    lv_obj_center(lbl_back);
-
-    /* Title */
-    lv_obj_t *lbl_title = lv_label_create(s_view_exp);
-    lv_label_set_text(lbl_title, "MEDIA EXPLORER\n// FILE REPOSITORY");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_style_text_line_space(lbl_title, 2, 0);
-    lv_obj_set_width(lbl_title, 250);
-    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(lbl_title, 126, 6);
-
-    /* Rescan Button */
-    lv_obj_t *btn_rescan = lv_btn_create(s_view_exp);
-    lv_obj_set_size(btn_rescan, 85, 28);
-    lv_obj_set_pos(btn_rescan, 385, 8);
+    /* Rescan Button in Footer Action area */
+    lv_obj_t *btn_rescan = lv_btn_create(frame->footer_action);
+    lv_obj_set_size(btn_rescan, 100, 26);
+    lv_obj_set_pos(btn_rescan, 0, 1);
     lv_obj_set_style_bg_color(btn_rescan, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(btn_rescan, COLOR_MINT, 0);
     lv_obj_set_style_border_width(btn_rescan, 1, 0);
@@ -1423,13 +1394,13 @@ void gui_file_explorer_open(lv_obj_t *parent)
     lv_obj_set_style_text_color(lbl_rescan, COLOR_MINT, 0);
     lv_obj_center(lbl_rescan);
 
-    /* Segmented Drive Tabs */
-    int tab_w = 225;
-    int tab_h = 28;
+    /* Segmented Drive Tabs inside frame->content */
+    int tab_w = 226;
+    int tab_h = 26;
 
-    s_btn_tab_int = lv_btn_create(s_view_exp);
+    s_btn_tab_int = lv_btn_create(frame->content);
     lv_obj_set_size(s_btn_tab_int, tab_w, tab_h);
-    lv_obj_set_pos(s_btn_tab_int, 10, 42);
+    lv_obj_set_pos(s_btn_tab_int, 0, 0);
     lv_obj_set_style_radius(s_btn_tab_int, 2, 0);
     lv_obj_set_style_border_width(s_btn_tab_int, 1, 0);
     lv_obj_clear_flag(s_btn_tab_int, LV_OBJ_FLAG_SCROLLABLE);
@@ -1440,9 +1411,9 @@ void gui_file_explorer_open(lv_obj_t *parent)
     lv_obj_set_style_text_font(s_lbl_tab_int, &font_orbitron_12, 0);
     lv_obj_center(s_lbl_tab_int);
 
-    s_btn_tab_sd = lv_btn_create(s_view_exp);
+    s_btn_tab_sd = lv_btn_create(frame->content);
     lv_obj_set_size(s_btn_tab_sd, tab_w, tab_h);
-    lv_obj_set_pos(s_btn_tab_sd, 245, 42);
+    lv_obj_set_pos(s_btn_tab_sd, 234, 0);
     lv_obj_set_style_radius(s_btn_tab_sd, 2, 0);
     lv_obj_set_style_border_width(s_btn_tab_sd, 1, 0);
     lv_obj_clear_flag(s_btn_tab_sd, LV_OBJ_FLAG_SCROLLABLE);
@@ -1454,9 +1425,9 @@ void gui_file_explorer_open(lv_obj_t *parent)
     lv_obj_center(s_lbl_tab_sd);
 
     /* Telemetry Ribbon */
-    lv_obj_t *ribbon = lv_obj_create(s_view_exp);
-    lv_obj_set_size(ribbon, 460, 24);
-    lv_obj_set_pos(ribbon, 10, 74);
+    lv_obj_t *ribbon = lv_obj_create(frame->content);
+    lv_obj_set_size(ribbon, 460, 22);
+    lv_obj_set_pos(ribbon, 0, 30);
     lv_obj_set_style_bg_color(ribbon, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(ribbon, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(ribbon, 1, 0);
@@ -1472,9 +1443,9 @@ void gui_file_explorer_open(lv_obj_t *parent)
     lv_obj_align(s_lbl_drive_info, LV_ALIGN_LEFT_MID, 0, 0);
 
     /* Scrollable File List */
-    s_file_list_cont = lv_obj_create(s_view_exp);
-    lv_obj_set_size(s_file_list_cont, 460, 212);
-    lv_obj_set_pos(s_file_list_cont, 10, 102);
+    s_file_list_cont = lv_obj_create(frame->content);
+    lv_obj_set_size(s_file_list_cont, 460, 168);
+    lv_obj_set_pos(s_file_list_cont, 0, 56);
     lv_obj_set_style_bg_color(s_file_list_cont, COLOR_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(s_file_list_cont, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(s_file_list_cont, COLOR_BORDER_LINE, 0);

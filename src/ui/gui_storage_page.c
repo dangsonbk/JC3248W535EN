@@ -10,6 +10,7 @@
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
 #include "gui_file_explorer.h"
+#include "ui_frame.h"
 
 static const char *TAG = "GUI_STORAGE";
 
@@ -339,68 +340,41 @@ static void open_explorer_btn_click_cb(lv_event_t *e)
     gui_file_explorer_open(lv_scr_act());
 }
 
-static void btn_back_cb(lv_event_t *e)
+static void on_storage_page_close(void)
 {
-    (void)e;
-    if (s_view_storage) {
-        lv_obj_del(s_view_storage);
-        s_view_storage = NULL;
-        s_btn_tab_internal = NULL;
-        s_btn_tab_sdcard = NULL;
-        s_lbl_tab_internal = NULL;
-        s_lbl_tab_sdcard = NULL;
-        s_arc_donut = NULL;
-        s_lbl_donut_pct = NULL;
-        s_lbl_donut_sub = NULL;
-        s_lbl_status_val = NULL;
-        s_lbl_details = NULL;
-        s_bar_storage = NULL;
-    }
+    s_view_storage = NULL;
+    s_btn_tab_internal = NULL;
+    s_btn_tab_sdcard = NULL;
+    s_lbl_tab_internal = NULL;
+    s_lbl_tab_sdcard = NULL;
+    s_arc_donut = NULL;
+    s_lbl_donut_pct = NULL;
+    s_lbl_donut_sub = NULL;
+    s_lbl_status_val = NULL;
+    s_lbl_details = NULL;
+    s_bar_storage = NULL;
 }
 
 void gui_storage_page_open(lv_obj_t *parent)
 {
+    (void)parent;
     if (s_view_storage) return;
 
-    s_view_storage = lv_obj_create(parent ? parent : lv_scr_act());
-    lv_obj_set_size(s_view_storage, 480, 320);
-    lv_obj_set_pos(s_view_storage, 0, 0);
-    lv_obj_set_style_bg_color(s_view_storage, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(s_view_storage, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(s_view_storage, 0, 0);
-    lv_obj_set_style_pad_all(s_view_storage, 0, 0);
-    lv_obj_clear_flag(s_view_storage, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "STORAGE",
+        .breadcrumb = "STORAGE // REPOSITORY",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_storage_page_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    s_view_storage = frame->root;
 
-    /* Top Left Back Button */
-    lv_obj_t *btn_back = lv_btn_create(s_view_storage);
-    lv_obj_set_size(btn_back, 100, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_ORANGE, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_back_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< SETTINGS");
-    lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_back, COLOR_ORANGE, 0);
-    lv_obj_center(lbl_back);
-
-    /* Header Title */
-    lv_obj_t *lbl_title = lv_label_create(s_view_storage);
-    lv_label_set_text(lbl_title, "STORAGE REPOSITORY\n// CAPACITY & FORMAT");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_title, 118, 4);
-    lv_obj_set_width(lbl_title, 255);
-    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
-
-    /* Rescan Button on Top Right */
-    lv_obj_t *btn_rescan = lv_btn_create(s_view_storage);
-    lv_obj_set_size(btn_rescan, 85, 28);
-    lv_obj_set_pos(btn_rescan, 385, 8);
+    /* Rescan Button on Footer Left */
+    lv_obj_t *btn_rescan = lv_btn_create(frame->footer_action);
+    lv_obj_set_size(btn_rescan, 120, 26);
+    lv_obj_align(btn_rescan, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_set_style_bg_color(btn_rescan, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(btn_rescan, COLOR_MINT, 0);
     lv_obj_set_style_border_width(btn_rescan, 1, 0);
@@ -414,13 +388,13 @@ void gui_storage_page_open(lv_obj_t *parent)
     lv_obj_set_style_text_color(lbl_rescan, COLOR_MINT, 0);
     lv_obj_center(lbl_rescan);
 
-    /* Segmented Drive Tabs */
+    /* Segmented Drive Tabs inside frame->content (460 x 224) */
     int tab_w = 225;
-    int tab_h = 28;
+    int tab_h = 26;
 
-    s_btn_tab_internal = lv_btn_create(s_view_storage);
+    s_btn_tab_internal = lv_btn_create(frame->content);
     lv_obj_set_size(s_btn_tab_internal, tab_w, tab_h);
-    lv_obj_set_pos(s_btn_tab_internal, 10, 42);
+    lv_obj_set_pos(s_btn_tab_internal, 0, 0);
     lv_obj_set_style_radius(s_btn_tab_internal, 2, 0);
     lv_obj_set_style_border_width(s_btn_tab_internal, 1, 0);
     lv_obj_clear_flag(s_btn_tab_internal, LV_OBJ_FLAG_SCROLLABLE);
@@ -431,9 +405,9 @@ void gui_storage_page_open(lv_obj_t *parent)
     lv_obj_set_style_text_font(s_lbl_tab_internal, &font_orbitron_12, 0);
     lv_obj_center(s_lbl_tab_internal);
 
-    s_btn_tab_sdcard = lv_btn_create(s_view_storage);
+    s_btn_tab_sdcard = lv_btn_create(frame->content);
     lv_obj_set_size(s_btn_tab_sdcard, tab_w, tab_h);
-    lv_obj_set_pos(s_btn_tab_sdcard, 245, 42);
+    lv_obj_set_pos(s_btn_tab_sdcard, 235, 0);
     lv_obj_set_style_radius(s_btn_tab_sdcard, 2, 0);
     lv_obj_set_style_border_width(s_btn_tab_sdcard, 1, 0);
     lv_obj_clear_flag(s_btn_tab_sdcard, LV_OBJ_FLAG_SCROLLABLE);
@@ -444,10 +418,10 @@ void gui_storage_page_open(lv_obj_t *parent)
     lv_obj_set_style_text_font(s_lbl_tab_sdcard, &font_orbitron_12, 0);
     lv_obj_center(s_lbl_tab_sdcard);
 
-    /* Main Container for Donut & Telemetry Details */
-    lv_obj_t *cont = lv_obj_create(s_view_storage);
-    lv_obj_set_size(cont, 460, 238);
-    lv_obj_set_pos(cont, 10, 74);
+    /* Main Container for Donut & Telemetry Details inside frame->content */
+    lv_obj_t *cont = lv_obj_create(frame->content);
+    lv_obj_set_size(cont, 460, 192);
+    lv_obj_set_pos(cont, 0, 30);
     lv_obj_set_style_bg_color(cont, COLOR_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(cont, COLOR_BORDER_LINE, 0);
@@ -458,7 +432,7 @@ void gui_storage_page_open(lv_obj_t *parent)
 
     /* Left Card: Circular Arc Donut Meter */
     lv_obj_t *donut_card = lv_obj_create(cont);
-    lv_obj_set_size(donut_card, 145, 172);
+    lv_obj_set_size(donut_card, 145, 142);
     lv_obj_set_pos(donut_card, 4, 4);
     lv_obj_set_style_bg_color(donut_card, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(donut_card, COLOR_BORDER_LINE, 0);
@@ -468,8 +442,8 @@ void gui_storage_page_open(lv_obj_t *parent)
     lv_obj_clear_flag(donut_card, LV_OBJ_FLAG_SCROLLABLE);
 
     s_arc_donut = lv_arc_create(donut_card);
-    lv_obj_set_size(s_arc_donut, 120, 120);
-    lv_obj_set_pos(s_arc_donut, 12, 10);
+    lv_obj_set_size(s_arc_donut, 100, 100);
+    lv_obj_set_pos(s_arc_donut, 22, 6);
     lv_arc_set_rotation(s_arc_donut, 270);
     lv_arc_set_bg_angles(s_arc_donut, 0, 360);
     lv_arc_set_range(s_arc_donut, 0, 100);
@@ -477,55 +451,55 @@ void gui_storage_page_open(lv_obj_t *parent)
     lv_obj_clear_flag(s_arc_donut, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_set_style_arc_color(s_arc_donut, lv_color_make(0x18, 0x24, 0x38), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(s_arc_donut, 12, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(s_arc_donut, 10, LV_PART_MAIN);
     lv_obj_set_style_arc_color(s_arc_donut, COLOR_ORANGE, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(s_arc_donut, 12, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(s_arc_donut, 10, LV_PART_INDICATOR);
 
     s_lbl_donut_pct = lv_label_create(donut_card);
     lv_label_set_text(s_lbl_donut_pct, "0%");
-    lv_obj_set_style_text_font(s_lbl_donut_pct, &font_orbitron_24, 0);
+    lv_obj_set_style_text_font(s_lbl_donut_pct, &font_orbitron_16, 0);
     lv_obj_set_style_text_color(s_lbl_donut_pct, COLOR_TEXT_WHITE, 0);
-    lv_obj_align(s_lbl_donut_pct, LV_ALIGN_CENTER, 0, -6);
+    lv_obj_align(s_lbl_donut_pct, LV_ALIGN_CENTER, 0, -8);
 
     s_lbl_donut_sub = lv_label_create(donut_card);
     lv_label_set_text(s_lbl_donut_sub, "USED");
     lv_obj_set_style_text_font(s_lbl_donut_sub, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(s_lbl_donut_sub, COLOR_ORANGE, 0);
-    lv_obj_align(s_lbl_donut_sub, LV_ALIGN_CENTER, 0, 18);
+    lv_obj_align(s_lbl_donut_sub, LV_ALIGN_CENTER, 0, 12);
 
     lv_obj_t *lbl_donut_note = lv_label_create(donut_card);
     lv_label_set_text(lbl_donut_note, "ALLOCATION GAUGE");
     lv_obj_set_style_text_font(lbl_donut_note, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_donut_note, COLOR_TEXT_MUTED, 0);
-    lv_obj_align(lbl_donut_note, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_align(lbl_donut_note, LV_ALIGN_BOTTOM_MID, 0, -4);
 
     /* Right Card: Telemetry & Detailed Space Metrics */
     lv_obj_t *detail_card = lv_obj_create(cont);
-    lv_obj_set_size(detail_card, 285, 172);
+    lv_obj_set_size(detail_card, 285, 142);
     lv_obj_set_pos(detail_card, 155, 4);
     lv_obj_set_style_bg_color(detail_card, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(detail_card, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(detail_card, 1, 0);
     lv_obj_set_style_radius(detail_card, 2, 0);
-    lv_obj_set_style_pad_all(detail_card, 8, 0);
+    lv_obj_set_style_pad_all(detail_card, 6, 0);
     lv_obj_clear_flag(detail_card, LV_OBJ_FLAG_SCROLLABLE);
 
     s_lbl_status_val = lv_label_create(detail_card);
     lv_label_set_recolor(s_lbl_status_val, true);
     lv_label_set_text(s_lbl_status_val, "#33d17a [ SCANNING DRIVE ]#");
     lv_obj_set_style_text_font(s_lbl_status_val, &font_orbitron_12, 0);
-    lv_obj_set_pos(s_lbl_status_val, 4, 4);
+    lv_obj_set_pos(s_lbl_status_val, 4, 2);
 
     s_lbl_details = lv_label_create(detail_card);
     lv_label_set_recolor(s_lbl_details, true);
     lv_label_set_text(s_lbl_details, "READING HARDWARE REPOSITORY...");
     lv_obj_set_style_text_font(s_lbl_details, &font_orbitron_12, 0);
-    lv_obj_set_pos(s_lbl_details, 4, 26);
+    lv_obj_set_pos(s_lbl_details, 4, 22);
 
     /* Bottom: Full Width Progress Bar & Explorer Navigation */
     s_bar_storage = lv_bar_create(cont);
     lv_obj_set_size(s_bar_storage, 300, 10);
-    lv_obj_set_pos(s_bar_storage, 4, 184);
+    lv_obj_set_pos(s_bar_storage, 4, 158);
     lv_obj_set_style_bg_color(s_bar_storage, lv_color_make(0x18, 0x24, 0x38), LV_PART_MAIN);
     lv_obj_set_style_radius(s_bar_storage, 2, LV_PART_MAIN);
     lv_obj_set_style_bg_color(s_bar_storage, COLOR_ORANGE, LV_PART_INDICATOR);
@@ -534,8 +508,8 @@ void gui_storage_page_open(lv_obj_t *parent)
 
     /* Open Media Explorer Button */
     lv_obj_t *btn_open_exp = lv_btn_create(cont);
-    lv_obj_set_size(btn_open_exp, 126, 32);
-    lv_obj_set_pos(btn_open_exp, 314, 180);
+    lv_obj_set_size(btn_open_exp, 126, 26);
+    lv_obj_set_pos(btn_open_exp, 314, 150);
     lv_obj_set_style_bg_color(btn_open_exp, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(btn_open_exp, COLOR_CYAN, 0);
     lv_obj_set_style_border_width(btn_open_exp, 1, 0);
@@ -551,3 +525,4 @@ void gui_storage_page_open(lv_obj_t *parent)
 
     switch_tab(STORAGE_TAB_INTERNAL);
 }
+

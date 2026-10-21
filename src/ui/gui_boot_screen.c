@@ -156,7 +156,48 @@ static void boot_timer_cb(lv_timer_t *timer) {
   }
 }
 
+#include "nvs_flash.h"
+#include "nvs.h"
+
+static bool s_boot_enabled = true;
+static bool s_boot_nvs_loaded = false;
+
+static void load_boot_nvs(void) {
+  if (s_boot_nvs_loaded) return;
+  s_boot_nvs_loaded = true;
+  nvs_handle_t handle;
+  if (nvs_open("sys_cfg", NVS_READONLY, &handle) == ESP_OK) {
+    uint8_t val = 1;
+    if (nvs_get_u8(handle, "boot_en", &val) == ESP_OK) {
+      s_boot_enabled = (val != 0);
+    }
+    nvs_close(handle);
+  }
+}
+
+bool gui_boot_screen_is_enabled(void) {
+  load_boot_nvs();
+  return s_boot_enabled;
+}
+
+void gui_boot_screen_set_enabled(bool enabled) {
+  s_boot_enabled = enabled;
+  s_boot_nvs_loaded = true;
+  nvs_handle_t handle;
+  if (nvs_open("sys_cfg", NVS_READWRITE, &handle) == ESP_OK) {
+    nvs_set_u8(handle, "boot_en", enabled ? 1 : 0);
+    nvs_commit(handle);
+    nvs_close(handle);
+  }
+}
+
 void gui_boot_screen_start(gui_boot_done_cb_t on_done) {
+  load_boot_nvs();
+  if (!s_boot_enabled) {
+    if (on_done) on_done();
+    return;
+  }
+
   s_on_boot_done = on_done;
   s_boot_progress = 0;
   s_boot_hold_ticks = 0;

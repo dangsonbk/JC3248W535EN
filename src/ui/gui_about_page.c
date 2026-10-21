@@ -1,6 +1,7 @@
 #include "gui_about_page.h"
 #include "gui_launcher.h"
 #include "gui_keyboard.h"
+#include "ui_frame.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -53,128 +54,77 @@ static void btn_edit_mission_cb(lv_event_t *e)
     gui_input_dialog_open(&cfg);
 }
 
-static void btn_back_cb(lv_event_t *e)
+static void on_about_page_close(void)
 {
-    (void)e;
-    if (s_view_about) {
-        lv_obj_del(s_view_about);
-        s_view_about = NULL;
-        s_lbl_mission_val = NULL;
-    }
+    s_view_about = NULL;
+    s_lbl_mission_val = NULL;
 }
 
 void gui_about_page_open(lv_obj_t *parent)
 {
+    (void)parent;
     if (s_view_about) return;
 
-    s_view_about = lv_obj_create(parent ? parent : lv_scr_act());
-    lv_obj_set_size(s_view_about, 480, 320);
-    lv_obj_set_pos(s_view_about, 0, 0);
-    lv_obj_set_style_bg_color(s_view_about, COLOR_BG, 0);
-    lv_obj_set_style_bg_opa(s_view_about, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(s_view_about, 0, 0);
-    lv_obj_set_style_pad_all(s_view_about, 0, 0);
-    lv_obj_clear_flag(s_view_about, LV_OBJ_FLAG_SCROLLABLE);
+    ui_page_config_t cfg = {
+        .title = "ABOUT",
+        .breadcrumb = "SYSTEM ABOUT // HARDWARE & ID",
+        .mode = UI_FRAME_DEFAULT,
+        .on_close = on_about_page_close,
+        .user_data = NULL
+    };
+    ui_frame_t *frame = ui_frame_push(&cfg);
+    if (!frame) return;
+    s_view_about = frame->root;
 
-    /* Top Left Back Button */
-    lv_obj_t *btn_back = lv_btn_create(s_view_about);
-    lv_obj_set_size(btn_back, 100, 28);
-    lv_obj_set_pos(btn_back, 10, 8);
-    lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(btn_back, COLOR_ORANGE, 0);
-    lv_obj_set_style_border_width(btn_back, 1, 0);
-    lv_obj_set_style_radius(btn_back, 2, 0);
-    lv_obj_clear_flag(btn_back, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(btn_back, btn_back_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< SETTINGS");
-    lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_back, COLOR_ORANGE, 0);
-    lv_obj_center(lbl_back);
-
-    /* Header Title */
-    lv_obj_t *lbl_title = lv_label_create(s_view_about);
-    lv_label_set_text(lbl_title, "SYSTEM ABOUT\n// HARDWARE & ID");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_style_text_line_space(lbl_title, 2, 0);
-    lv_obj_set_width(lbl_title, 255);
-    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(lbl_title, 122, 6);
-
-    /* Top Right Version Badge */
-    lv_obj_t *badge = lv_obj_create(s_view_about);
-    lv_obj_set_size(badge, 80, 24);
-    lv_obj_set_pos(badge, 390, 10);
-    lv_obj_set_style_bg_color(badge, COLOR_PANEL_BG, 0);
-    lv_obj_set_style_border_color(badge, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(badge, 1, 0);
-    lv_obj_set_style_radius(badge, 2, 0);
-    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *lbl_badge = lv_label_create(badge);
-    lv_label_set_text(lbl_badge, "v1.0.4");
-    lv_obj_set_style_text_font(lbl_badge, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_badge, COLOR_MINT, 0);
-    lv_obj_center(lbl_badge);
-
-    /* Divider */
-    lv_obj_t *line_top = lv_obj_create(s_view_about);
-    lv_obj_set_size(line_top, 460, 1);
-    lv_obj_set_pos(line_top, 10, 42);
-    lv_obj_set_style_bg_color(line_top, COLOR_BORDER_LINE, 0);
-    lv_obj_set_style_border_width(line_top, 0, 0);
-
-    /* Container for cards */
-    lv_obj_t *cont = lv_obj_create(s_view_about);
-    lv_obj_set_size(cont, 460, 268);
-    lv_obj_set_pos(cont, 10, 46);
+    /* Container for cards inside frame->content (460 x 224) */
+    lv_obj_t *cont = lv_obj_create(frame->content);
+    lv_obj_set_size(cont, 460, 224);
+    lv_obj_set_pos(cont, 0, 0);
     lv_obj_set_style_bg_color(cont, COLOR_PANEL_BG, 0);
     lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(cont, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(cont, 1, 0);
     lv_obj_set_style_radius(cont, 3, 0);
-    lv_obj_set_style_pad_all(cont, 10, 0);
+    lv_obj_set_style_pad_all(cont, 8, 0);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
 
     /* ================================================================
      * CARD 1: MISSION IDENTITY CONFIGURATION (Max 8 characters)
      * ================================================================ */
     lv_obj_t *card_id = lv_obj_create(cont);
-    lv_obj_set_size(card_id, 438, 92);
+    lv_obj_set_size(card_id, 442, 74);
     lv_obj_set_pos(card_id, 0, 0);
     lv_obj_set_style_bg_color(card_id, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(card_id, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(card_id, 1, 0);
     lv_obj_set_style_radius(card_id, 3, 0);
-    lv_obj_set_style_pad_all(card_id, 8, 0);
+    lv_obj_set_style_pad_all(card_id, 6, 0);
     lv_obj_clear_flag(card_id, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *lbl_card1_title = lv_label_create(card_id);
     lv_label_set_text(lbl_card1_title, ":: MISSION CONTROL CALLSIGN (MAX 8 CHARS)");
     lv_obj_set_style_text_font(lbl_card1_title, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_card1_title, COLOR_ORANGE, 0);
-    lv_obj_set_pos(lbl_card1_title, 4, 4);
+    lv_obj_set_pos(lbl_card1_title, 4, 2);
 
     /* Current Mission Name Value */
     s_lbl_mission_val = lv_label_create(card_id);
     lv_label_set_text(s_lbl_mission_val, gui_launcher_get_mission_name());
     lv_obj_set_style_text_font(s_lbl_mission_val, &font_orbitron_24, 0);
     lv_obj_set_style_text_color(s_lbl_mission_val, COLOR_MINT, 0);
-    lv_obj_set_pos(s_lbl_mission_val, 8, 30);
+    lv_obj_set_pos(s_lbl_mission_val, 8, 24);
 
     /* Subtext */
     lv_obj_t *lbl_sub = lv_label_create(card_id);
     lv_label_set_text(lbl_sub, "HUD TITLE & TELEMETRY IDENTIFIER");
     lv_obj_set_style_text_font(lbl_sub, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_sub, COLOR_TEXT_MUTED, 0);
-    lv_obj_set_pos(lbl_sub, 8, 62);
+    lv_obj_set_pos(lbl_sub, 8, 52);
 
     /* Edit Button */
     lv_obj_t *btn_edit = lv_btn_create(card_id);
-    lv_obj_set_size(btn_edit, 130, 36);
-    lv_obj_set_pos(btn_edit, 290, 26);
+    lv_obj_set_size(btn_edit, 120, 32);
+    lv_obj_set_pos(btn_edit, 310, 20);
     lv_obj_set_style_bg_color(btn_edit, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(btn_edit, COLOR_ORANGE, 0);
     lv_obj_set_style_border_width(btn_edit, 1, 0);
@@ -192,20 +142,20 @@ void gui_about_page_open(lv_obj_t *parent)
      * CARD 2: HARDWARE ARCHITECTURE & SPECS
      * ================================================================ */
     lv_obj_t *card_spec = lv_obj_create(cont);
-    lv_obj_set_size(card_spec, 438, 142);
-    lv_obj_set_pos(card_spec, 0, 100);
+    lv_obj_set_size(card_spec, 442, 126);
+    lv_obj_set_pos(card_spec, 0, 80);
     lv_obj_set_style_bg_color(card_spec, COLOR_CARD_BG, 0);
     lv_obj_set_style_border_color(card_spec, COLOR_BORDER_LINE, 0);
     lv_obj_set_style_border_width(card_spec, 1, 0);
     lv_obj_set_style_radius(card_spec, 3, 0);
-    lv_obj_set_style_pad_all(card_spec, 8, 0);
+    lv_obj_set_style_pad_all(card_spec, 6, 0);
     lv_obj_clear_flag(card_spec, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *lbl_card2_title = lv_label_create(card_spec);
     lv_label_set_text(lbl_card2_title, ":: HARDWARE ARCHITECTURE // SPECS");
     lv_obj_set_style_text_font(lbl_card2_title, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_card2_title, COLOR_CYAN, 0);
-    lv_obj_set_pos(lbl_card2_title, 4, 4);
+    lv_obj_set_pos(lbl_card2_title, 4, 2);
 
     lv_obj_t *lbl_specs = lv_label_create(card_spec);
     lv_label_set_recolor(lbl_specs, true);
@@ -216,5 +166,6 @@ void gui_about_page_open(lv_obj_t *parent)
         "#708298 STORAGE:# #f0f4f8 11.87MB SPIFFS + Micro-SD (SDMMC 1-Bit)#\n"
         "#708298 FRAMEWORK:# #33d17a ESP-IDF 5.2.1 + LVGL 8.4 Mission HUD#");
     lv_obj_set_style_text_font(lbl_specs, &font_orbitron_12, 0);
-    lv_obj_set_pos(lbl_specs, 4, 24);
+    lv_obj_set_pos(lbl_specs, 4, 22);
 }
+
