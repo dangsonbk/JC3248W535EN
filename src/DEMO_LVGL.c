@@ -31,6 +31,10 @@ static const char *TAG = "DEMO_LVGL";
 
 #include "gui_launcher.h"
 #include "wifi_controller.h"
+#include "sys_log.h"
+#include "gui_display_settings.h"
+#include "gui_storage_page.h"
+#include "gui_boot_screen.h"
 
 void setup();
 
@@ -43,11 +47,14 @@ void app_main()
   setup();
 }
 #endif
+static void on_boot_complete(void)
+{
+  ESP_LOGI(TAG, "Boot sequence completed. Loading Mission Control HUD.");
+  gui_launcher_init();
+}
+
 void setup()
 {
-  //  String title = "LVGL porting example";
-
-  // Serial.begin(115200);
   logSection("LVGL porting example start");
   esp_chip_info_t chip_info;
   uint32_t flash_size;
@@ -80,6 +87,7 @@ void setup()
   lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
   port_cfg.task_affinity = 1; // Pin LVGL task to Core 1 (leaving Core 0 for system/wifi)
   port_cfg.task_priority = 5;
+  port_cfg.task_stack = 8192; // Ensure sufficient stack for VFS, file I/O and LVGL modals
 
   bsp_display_cfg_t cfg = {
       .lvgl_port_cfg = port_cfg,
@@ -102,14 +110,23 @@ void setup()
   /* Lock the mutex due to the LVGL APIs are not thread-safe */
   bsp_display_lock(0);
 
-  /* Initialize Futuristic Mission Control Launcher */
-  gui_launcher_init();
+  /* Initialize Display & Sleep Subsystem (loads brightness & sleep watchdog) */
+  gui_display_settings_init();
+
+  /* Initialize Storage subsystem */
+  gui_storage_init();
+
+  /* Initialize System Log subsystem */
+  sys_log_init();
 
   /* Initialize Wi-Fi Controller worker on Core 0 */
   wifi_controller_init();
 
   /* Initialize Weather Service worker on Core 0 */
   weather_service_init();
+
+  /* Start Cyberpunk Root Access Boot Sequence, then load Launcher */
+  gui_boot_screen_start(on_boot_complete);
 
   /* Release the mutex */
   bsp_display_unlock();

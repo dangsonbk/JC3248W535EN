@@ -42,44 +42,60 @@ static lv_obj_t *s_card0_hl = NULL;
 static lv_obj_t *s_card0_cond = NULL;
 static lv_obj_t *s_card0_rain = NULL;
 
-#include <time.h>
-#include <sys/time.h>
-#include <math.h>
-#include "wifi_controller.h"
-#include "weather_service.h"
 #include "gui_weather_page.h"
 #include "weather_icons.h"
+#include "weather_service.h"
+#include "wifi_controller.h"
+#include "sys_log.h"
+#include <math.h>
+#include <sys/time.h>
+#include <time.h>
 
 /* Sci-Fi Typewriter Terminal State */
-static char s_target_log[96] = "INITIALIZING SYSTEM...";
+static char s_target_log[128] = "INITIALIZING SYSTEM...";
 static uint16_t s_typed_idx = 0;
 static uint32_t s_last_log_ver = 0;
 static uint8_t s_cursor_tick = 0;
+static uint16_t s_hold_ticks = 0;
 
-static void typewriter_timer_cb(lv_timer_t *t)
-{
+static void typewriter_timer_cb(lv_timer_t *t) {
   (void)t;
-  if (!s_lbl_terminal) return;
+  if (!s_lbl_terminal)
+    return;
 
+  /* Check for priority event from sys_log */
   uint32_t ver = 0;
-  const char *latest = wifi_controller_get_log(&ver);
+  const char *latest = sys_log_get(&ver);
   if (ver != s_last_log_ver && latest) {
     s_last_log_ver = ver;
     strncpy(s_target_log, latest, sizeof(s_target_log) - 1);
     s_target_log[sizeof(s_target_log) - 1] = '\0';
     s_typed_idx = 0;
+    s_hold_ticks = 0;
   }
 
   size_t target_len = strlen(s_target_log);
   if (s_typed_idx < target_len) {
     s_typed_idx++;
+    s_hold_ticks = 0;
+  } else {
+    /* Message fully typed: hold for 5 seconds (125 ticks @ 40ms) so user can comfortably read it */
+    s_hold_ticks++;
+    if (s_hold_ticks >= 125) {
+      s_hold_ticks = 0;
+      sys_log_get_next_idle(s_target_log, sizeof(s_target_log));
+      s_typed_idx = 0;
+      /* Synchronize last_log_ver with current sys_log to prevent immediate overwrite */
+      sys_log_get(&s_last_log_ver);
+    }
   }
 
   s_cursor_tick++;
   bool show_cursor = ((s_cursor_tick / 6) % 2 == 0);
 
-  char disp[120];
-  snprintf(disp, sizeof(disp), "// %.*s%s", (int)s_typed_idx, s_target_log, show_cursor ? "_" : " ");
+  char disp[140];
+  snprintf(disp, sizeof(disp), "> %.*s%s", (int)s_typed_idx, s_target_log,
+           show_cursor ? "_" : " ");
   lv_label_set_text(s_lbl_terminal, disp);
 }
 
@@ -95,7 +111,8 @@ static void update_launcher_status(void) {
     char buf[64];
     if (st == WIFI_STATUS_CONNECTED) {
       snprintf(buf, sizeof(buf),
-               "%02d:%02d  #c2dec9 " LV_SYMBOL_WIFI "#  " LV_SYMBOL_BATTERY_FULL,
+               "%02d:%02d  #c2dec9 " LV_SYMBOL_WIFI
+               "#  " LV_SYMBOL_BATTERY_FULL,
                timeinfo.tm_hour, timeinfo.tm_min);
       lv_label_set_recolor(s_lbl_top_right, true);
     } else {
@@ -109,11 +126,13 @@ static void update_launcher_status(void) {
   /* 2. Current Date Label (replacing Phase 1) */
   if (s_lbl_date) {
     const char *day_names[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-    const char *mon_names[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+    const char *mon_names[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                               "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
     int year = timeinfo.tm_year + 1900;
     char date_buf[64];
     snprintf(date_buf, sizeof(date_buf), "%s, %02d %s %04d",
-             day_names[timeinfo.tm_wday % 7], timeinfo.tm_mday, mon_names[timeinfo.tm_mon % 12], year);
+             day_names[timeinfo.tm_wday % 7], timeinfo.tm_mday,
+             mon_names[timeinfo.tm_mon % 12], year);
     lv_label_set_text(s_lbl_date, date_buf);
   }
 
@@ -152,9 +171,12 @@ static void update_launcher_status(void) {
   const weather_data_t *w = weather_service_get_data();
   if (w && s_card0_num) {
     bool is_f = w->is_fahrenheit;
-    int cur_t = is_f ? (int)roundf((w->current_temp * 9.0f / 5.0f) + 32.0f) : w->current_temp;
-    int max_t = is_f ? (int)roundf((w->temp_max * 9.0f / 5.0f) + 32.0f) : w->temp_max;
-    int min_t = is_f ? (int)roundf((w->temp_min * 9.0f / 5.0f) + 32.0f) : w->temp_min;
+    int cur_t = is_f ? (int)roundf((w->current_temp * 9.0f / 5.0f) + 32.0f)
+                     : w->current_temp;
+    int max_t =
+        is_f ? (int)roundf((w->temp_max * 9.0f / 5.0f) + 32.0f) : w->temp_max;
+    int min_t =
+        is_f ? (int)roundf((w->temp_min * 9.0f / 5.0f) + 32.0f) : w->temp_min;
 
     char t_buf[16];
     snprintf(t_buf, sizeof(t_buf), "%d", cur_t);
@@ -181,7 +203,8 @@ static void update_launcher_status(void) {
 
     if (s_card0_rain) {
       char r_buf[32];
-      snprintf(r_buf, sizeof(r_buf), LV_SYMBOL_BULLET " RAIN: %d%%", w->rain_probability);
+      snprintf(r_buf, sizeof(r_buf), LV_SYMBOL_BULLET " RAIN: %d%%",
+               w->rain_probability);
       lv_label_set_text(s_card0_rain, r_buf);
     }
   }
@@ -233,15 +256,15 @@ static const card_meta_t cards_data[] = {
      .is_orange = false,
      .is_mint = false,
      .border_hex = 0xC2DEC9},
-    {.tag = "ENERGY // 04",
-     .icon = LV_SYMBOL_WARNING,
-     .number = "12",
-     .title = "Reactor Grid",
-     .sub = "CORE GENERATOR",
-     .stat = LV_SYMBOL_BULLET " 5.302 kW",
+    {.tag = "FILES // 04",
+     .icon = LV_SYMBOL_DIRECTORY,
+     .number = "DIR",
+     .title = "File Explorer",
+     .sub = "MEDIA REPO",
+     .stat = LV_SYMBOL_BULLET " FLASH & SD",
      .is_orange = false,
      .is_mint = false,
-     .border_hex = 0xFF5A2A},
+     .border_hex = 0x38BFD8},
     {.tag = "CONFIG // 05",
      .icon = LV_SYMBOL_SETTINGS,
      .number = "SET",
@@ -263,7 +286,44 @@ static const card_meta_t cards_data[] = {
 
 #include "gui_settings_page.h"
 #include "gui_system_page.h"
+#include "gui_file_explorer.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include <string.h>
+
+static char s_mission_name[16] = "KPARK K2";
+static lv_obj_t *s_lbl_mission_title = NULL;
+
+static void load_mission_name_nvs(void) {
+  nvs_handle_t handle;
+  if (nvs_open("sys_cfg", NVS_READONLY, &handle) == ESP_OK) {
+    size_t len = sizeof(s_mission_name);
+    if (nvs_get_str(handle, "mission", s_mission_name, &len) == ESP_OK) {
+      s_mission_name[sizeof(s_mission_name) - 1] = '\0';
+    }
+    nvs_close(handle);
+  }
+}
+
+const char *gui_launcher_get_mission_name(void) {
+  return s_mission_name;
+}
+
+void gui_launcher_set_mission_name(const char *name) {
+  if (!name || strlen(name) == 0) name = "KPARK K2";
+  strncpy(s_mission_name, name, 8);
+  s_mission_name[8] = '\0';
+
+  nvs_handle_t handle;
+  if (nvs_open("sys_cfg", NVS_READWRITE, &handle) == ESP_OK) {
+    nvs_set_str(handle, "mission", s_mission_name);
+    nvs_commit(handle);
+    nvs_close(handle);
+  }
+  if (s_lbl_mission_title && lv_obj_is_valid(s_lbl_mission_title)) {
+    lv_label_set_text(s_lbl_mission_title, s_mission_name);
+  }
+}
 
 static void card_click_event_cb(lv_event_t *e) {
   const card_meta_t *meta = (const card_meta_t *)lv_event_get_user_data(e);
@@ -280,6 +340,8 @@ static void card_click_event_cb(lv_event_t *e) {
     gui_settings_page_open();
   } else if (meta && strcmp(meta->tag, "METEO // 01") == 0) {
     gui_weather_page_open();
+  } else if (meta && strcmp(meta->number, "DIR") == 0) {
+    gui_file_explorer_open(lv_scr_act());
   }
 }
 
@@ -317,14 +379,17 @@ void gui_launcher_init(void) {
   lv_obj_set_style_text_font(s_lbl_top_right, &font_orbitron_12, 0);
   lv_obj_set_style_text_color(s_lbl_top_right, COLOR_TEXT_MUTED, 0);
 
-  /* Main title: "KPARK K2" in Orbitron bold */
-  lv_obj_t *lbl_title = lv_label_create(scr);
-  lv_label_set_text(lbl_title, "KPARK K2");
-  lv_obj_set_style_text_font(lbl_title, &font_orbitron_24, 0);
-  lv_obj_set_style_text_color(lbl_title, COLOR_MINT, 0);
-  lv_obj_set_pos(lbl_title, 12, 17);
+  load_mission_name_nvs();
 
-  /* Sci-Fi Typewriter Terminal Log Label (replaced // Mars Expedition & D350 badge) */
+  /* Main title: Mission Callsign in Orbitron bold */
+  s_lbl_mission_title = lv_label_create(scr);
+  lv_label_set_text(s_lbl_mission_title, s_mission_name);
+  lv_obj_set_style_text_font(s_lbl_mission_title, &font_orbitron_24, 0);
+  lv_obj_set_style_text_color(s_lbl_mission_title, COLOR_MINT, 0);
+  lv_obj_set_pos(s_lbl_mission_title, 12, 17);
+
+  /* Sci-Fi Typewriter Terminal Log Label (replaced // Mars Expedition & D350
+   * badge) */
   s_lbl_terminal = lv_label_create(scr);
   lv_obj_set_pos(s_lbl_terminal, 168, 23);
   lv_obj_set_size(s_lbl_terminal, 300, 22);

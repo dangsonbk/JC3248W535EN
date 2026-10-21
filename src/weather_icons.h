@@ -20,6 +20,9 @@ typedef enum {
     WEATHER_ICON_SNOW,
     WEATHER_ICON_FOG,
     WEATHER_ICON_WIND,
+    WEATHER_ICON_MOON,
+    WEATHER_ICON_SUNRISE,
+    WEATHER_ICON_SUNSET,
     WEATHER_ICON_COUNT
 } weather_icon_type_t;
 
@@ -31,6 +34,9 @@ extern const lv_img_dsc_t img_weather_thunder;
 extern const lv_img_dsc_t img_weather_snow;
 extern const lv_img_dsc_t img_weather_fog;
 extern const lv_img_dsc_t img_weather_wind;
+extern const lv_img_dsc_t img_weather_moon;
+extern const lv_img_dsc_t img_weather_sunrise;
+extern const lv_img_dsc_t img_weather_sunset;
 
 /* Map WMO weather code (and optional wind speed) to icon descriptor */
 const lv_img_dsc_t *weather_icon_get_dsc(int wmo_code);

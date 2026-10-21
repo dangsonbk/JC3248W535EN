@@ -6,6 +6,7 @@
 
 #include "weather_service.h"
 #include "wifi_controller.h"
+#include "sys_log.h"
 #include "lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -38,6 +39,9 @@ static char s_search_resolved_name[64] = "";
 static QueueHandle_t q_weather_cmd = NULL;
 static TaskHandle_t s_weather_task_handle = NULL;
 static bool s_weather_inited = false;
+static volatile bool s_is_fetching = false;
+static uint32_t s_weather_update_count = 0;
+static char s_last_sync_time[16] = "--:--";
 
 static void map_wmo_code(int code, char *out_str, size_t max_len, const char **out_icon)
 {
@@ -237,6 +241,7 @@ static char *http_fetch_url(const char *url)
  * -------------------------------------------------------------------- */
 static void do_fetch_forecast(void)
 {
+    s_is_fetching = true;
     char url[512];
     snprintf(url, sizeof(url),
              "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
@@ -249,6 +254,8 @@ static void do_fetch_forecast(void)
     char *json_str = http_fetch_url(url);
     if (!json_str) {
         ESP_LOGE(TAG, "Failed to fetch weather JSON");
+        s_is_fetching = false;
+        sys_log_set("METEO SYNC FAILED :: OFFLINE");
         return;
     }
 
@@ -256,6 +263,8 @@ static void do_fetch_forecast(void)
     free(json_str);
     if (!root) {
         ESP_LOGE(TAG, "JSON Parse Error");
+        s_is_fetching = false;
+        sys_log_set("METEO JSON ERROR :: PARSE FAIL");
         return;
     }
 
@@ -281,6 +290,7 @@ static void do_fetch_forecast(void)
         cJSON *p_prob = cJSON_GetObjectItem(daily, "precipitation_probability_max");
         cJSON *sunr = cJSON_GetObjectItem(daily, "sunrise");
         cJSON *suns = cJSON_GetObjectItem(daily, "sunset");
+        cJSON *d_time = cJSON_GetObjectItem(daily, "time");
 
         if (t_max && cJSON_GetArraySize(t_max) > 0) {
             s_weather_data.temp_max = (int)cJSON_GetArrayItem(t_max, 0)->valuedouble;
@@ -312,7 +322,7 @@ static void do_fetch_forecast(void)
             }
         }
 
-        /* 4-Day Forecast */
+        /* 4-Day Forecast with Real Day Names parsed from API */
         int num_days = cJSON_GetArraySize(t_max);
         if (num_days > 4) num_days = 4;
         for (int i = 0; i < num_days; i++) {
@@ -325,16 +335,41 @@ static void do_fetch_forecast(void)
                 map_wmo_code(c, s_weather_data.forecast[i].condition, sizeof(s_weather_data.forecast[i].condition),
                              &s_weather_data.forecast[i].icon);
             }
+            if (d_time && i < cJSON_GetArraySize(d_time)) {
+                const char *dt = cJSON_GetArrayItem(d_time, i)->valuestring;
+                int yr = 0, mo = 0, da = 0;
+                if (dt && sscanf(dt, "%d-%d-%d", &yr, &mo, &da) == 3) {
+                    struct tm tm_d = {0};
+                    tm_d.tm_year = yr - 1900;
+                    tm_d.tm_mon = mo - 1;
+                    tm_d.tm_mday = da;
+                    mktime(&tm_d);
+                    const char *wdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+                    if (i == 0) {
+                        strncpy(s_weather_data.forecast[i].day_name, "TODAY", sizeof(s_weather_data.forecast[i].day_name));
+                    } else {
+                        strncpy(s_weather_data.forecast[i].day_name, wdays[tm_d.tm_wday % 7], sizeof(s_weather_data.forecast[i].day_name));
+                    }
+                }
+            }
         }
     }
 
     cJSON_Delete(root);
     s_weather_data.valid = true;
+    s_is_fetching = false;
+    s_weather_update_count++;
+
+    time_t now = 0;
+    time(&now);
+    struct tm ti;
+    localtime_r(&now, &ti);
+    snprintf(s_last_sync_time, sizeof(s_last_sync_time), "%02d:%02d", ti.tm_hour, ti.tm_min);
 
     char log_buf[96];
-    snprintf(log_buf, sizeof(log_buf), "METEO // SYNCED %s [%d C]", s_weather_data.city_name, s_weather_data.current_temp);
-    wifi_controller_set_log(log_buf);
-    ESP_LOGI(TAG, "Weather sync complete: %d C, %s", s_weather_data.current_temp, s_weather_data.condition_str);
+    snprintf(log_buf, sizeof(log_buf), "METEO :: SYNCED %s [%d C] @ %s", s_weather_data.city_name, s_weather_data.current_temp, s_last_sync_time);
+    sys_log_set(log_buf);
+    ESP_LOGI(TAG, "Weather sync complete: %d C, %s at %s", s_weather_data.current_temp, s_weather_data.condition_str, s_last_sync_time);
 }
 
 static void do_search_city(const char *query)
@@ -501,3 +536,19 @@ const char *weather_service_get_city(void)
 {
     return s_weather_data.city_name;
 }
+
+bool weather_service_is_busy(void)
+{
+    return s_is_fetching;
+}
+
+uint32_t weather_service_get_update_count(void)
+{
+    return s_weather_update_count;
+}
+
+const char *weather_service_get_last_sync_time(void)
+{
+    return s_last_sync_time;
+}
+

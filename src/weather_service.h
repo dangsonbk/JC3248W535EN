@@ -83,6 +83,15 @@ bool weather_service_get_unit(void);
 /* Get active location name */
 const char *weather_service_get_city(void);
 
+/* Check if weather fetch is actively in progress */
+bool weather_service_is_busy(void);
+
+/* Get number of successful weather data syncs */
+uint32_t weather_service_get_update_count(void);
+
+/* Get timestamp string of last successful sync (e.g. "10:45") */
+const char *weather_service_get_last_sync_time(void);
+
 #ifdef __cplusplus
 }
 #endif

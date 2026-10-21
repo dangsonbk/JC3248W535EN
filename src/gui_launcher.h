@@ -12,6 +12,16 @@ extern "C" {
 
 void gui_launcher_init(void);
 
+/**
+ * @brief Get currently configured mission name (max 8 characters, default "KPARK K2")
+ */
+const char *gui_launcher_get_mission_name(void);
+
+/**
+ * @brief Set and save new mission name (max 8 characters)
+ */
+void gui_launcher_set_mission_name(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

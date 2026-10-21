@@ -193,7 +193,7 @@ void gui_system_page_open(void)
 
     /* Back button */
     lv_obj_t *btn_back = lv_btn_create(view_system);
-    lv_obj_set_size(btn_back, 130, 28);
+    lv_obj_set_size(btn_back, 110, 28);
     lv_obj_set_pos(btn_back, 10, 8);
     lv_obj_set_style_bg_color(btn_back, COLOR_PANEL_BG, 0);
     lv_obj_set_style_border_color(btn_back, COLOR_MINT, 0);
@@ -204,23 +204,19 @@ void gui_system_page_open(void)
     lv_obj_add_event_cb(btn_back, btn_back_click_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "< ESC // RETURN");
+    lv_label_set_text(lbl_back, "< LAUNCHER");
     lv_obj_set_style_text_font(lbl_back, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_back, COLOR_MINT, 0);
     lv_obj_center(lbl_back);
 
     /* Header title */
     lv_obj_t *lbl_title = lv_label_create(view_system);
-    lv_label_set_text(lbl_title, "SYSTEM TELEMETRY");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_16, 0);
+    lv_label_set_text(lbl_title, "SYSTEM TELEMETRY\n// HARDWARE MONITOR");
+    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_title, 155, 6);
-
-    lv_obj_t *lbl_sub = lv_label_create(view_system);
-    lv_label_set_text(lbl_sub, "// HARDWARE BUS & STATUS MONITOR");
-    lv_obj_set_style_text_font(lbl_sub, &font_orbitron_12, 0);
-    lv_obj_set_style_text_color(lbl_sub, COLOR_ORANGE, 0);
-    lv_obj_set_pos(lbl_sub, 155, 24);
+    lv_obj_set_pos(lbl_title, 125, 4);
+    lv_obj_set_width(lbl_title, 250);
+    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
 
     /* Right status badge */
     lv_obj_t *badge = lv_obj_create(view_system);

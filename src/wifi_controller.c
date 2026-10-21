@@ -42,8 +42,7 @@ static char s_ip_addr[16] = "0.0.0.0";
 static char s_connected_ssid[33] = "";
 static char s_last_password[64] = "";
 
-static char s_system_log[96] = "SYSTEM INITIALIZED";
-static uint32_t s_system_log_ver = 1;
+#include "sys_log.h"
 
 static QueueHandle_t q_wifi_cmd = NULL;
 static QueueHandle_t q_wifi_results = NULL;
@@ -51,17 +50,12 @@ static TaskHandle_t wifi_task_handle = NULL;
 
 void wifi_controller_set_log(const char *msg)
 {
-    if (!msg) return;
-    strncpy(s_system_log, msg, sizeof(s_system_log) - 1);
-    s_system_log[sizeof(s_system_log) - 1] = '\0';
-    s_system_log_ver++;
-    ESP_LOGI(TAG, "SYS_LOG: %s", s_system_log);
+    sys_log_set(msg);
 }
 
 const char *wifi_controller_get_log(uint32_t *out_ver)
 {
-    if (out_ver) *out_ver = s_system_log_ver;
-    return s_system_log;
+    return sys_log_get(out_ver);
 }
 
 /* --------------------------------------------------------------------
@@ -103,7 +97,7 @@ static void time_sync_notification_cb(struct timeval *tv)
     (void)tv;
     s_time_synced = true;
     ESP_LOGI(TAG, "NTP Time sync notification received!");
-    wifi_controller_set_log("NTP SYNC COMPLETE // TIME SET");
+    wifi_controller_set_log("NTP SYNC COMPLETE :: TIME SET");
 }
 
 static void start_ntp_sync(void)
@@ -149,14 +143,14 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         } else if (event_id == WIFI_EVENT_STA_CONNECTED) {
             ESP_LOGI(TAG, "Wi-Fi Connected to AP, waiting for IP...");
             char buf[96];
-            snprintf(buf, sizeof(buf), "CONNECTED TO %s // GETTING IP...", s_connected_ssid);
+            snprintf(buf, sizeof(buf), "CONNECTED %s :: GETTING IP ...", s_connected_ssid);
             wifi_controller_set_log(buf);
         } else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
             wifi_event_sta_disconnected_t *disconn = (wifi_event_sta_disconnected_t *)event_data;
             ESP_LOGW(TAG, "Wi-Fi Disconnected (reason: %d)", disconn ? disconn->reason : 0);
             if (s_wifi_status == WIFI_STATUS_CONNECTING) {
                 s_wifi_status = WIFI_STATUS_FAILED;
-                wifi_controller_set_log("CONNECTION FAILED // RETRYING");
+                wifi_controller_set_log("CONNECTION FAILED :: RETRYING");
             } else if (s_wifi_status == WIFI_STATUS_CONNECTED) {
                 s_wifi_status = WIFI_STATUS_IDLE;
                 strcpy(s_ip_addr, "0.0.0.0");
@@ -175,7 +169,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 
         /* Log network connection */
         char buf[96];
-        snprintf(buf, sizeof(buf), "ONLINE // IP: %s", s_ip_addr);
+        snprintf(buf, sizeof(buf), "ONLINE :: IP: %s", s_ip_addr);
         wifi_controller_set_log(buf);
 
         /* Trigger NTP sync */
@@ -278,11 +272,11 @@ void wifi_controller_auto_connect(void)
     char saved_pass[64] = {0};
     if (wifi_controller_load_saved_credentials(saved_ssid, sizeof(saved_ssid), saved_pass, sizeof(saved_pass))) {
         char buf[96];
-        snprintf(buf, sizeof(buf), "CONNECTING // %s", saved_ssid);
+        snprintf(buf, sizeof(buf), "CONNECTING :: %s", saved_ssid);
         wifi_controller_set_log(buf);
         wifi_controller_connect(saved_ssid, saved_pass);
     } else {
-        wifi_controller_set_log("SYSTEM LOADED // STANDBY");
+        wifi_controller_set_log("SYSTEM LOADED :: STANDBY");
     }
 }
 
@@ -302,7 +296,7 @@ esp_err_t wifi_controller_init(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    wifi_controller_set_log("BOOT // CHECKING SAVED NETWORKS...");
+    wifi_controller_set_log("BOOT :: CHECKING SAVED NETWORKS...");
 
     /* Initialize TCP/IP and Event Loop */
     esp_netif_init();

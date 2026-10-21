@@ -6,6 +6,9 @@
 
 #include "gui_settings_page.h"
 #include "gui_weather_settings.h"
+#include "gui_display_settings.h"
+#include "gui_storage_page.h"
+#include "gui_about_page.h"
 #include "gui_keyboard.h"
 #include "wifi_controller.h"
 #include "lvgl.h"
@@ -51,10 +54,10 @@ typedef struct {
 
 static const setting_item_t settings_grid[10] = {
     {1,  "01", LV_SYMBOL_WIFI,        "WI-FI",    "SCAN/CONNECT", true},
-    {2,  "02", LV_SYMBOL_IMAGE,       "DISPLAY",  "100% BRIGHT",  false},
+    {2,  "02", LV_SYMBOL_IMAGE,       "DISPLAY",  "PWM / SLEEP",  true},
     {3,  "03", LV_SYMBOL_VOLUME_MAX,  "AUDIO",    "SPEAKER OK",   false},
     {4,  "04", LV_SYMBOL_SHUFFLE,     "BLE",      "STANDBY",      true},
-    {5,  "05", LV_SYMBOL_DRIVE,       "STORAGE",  "LITTLEFS",     false},
+    {5,  "05", LV_SYMBOL_DRIVE,       "STORAGE",  "FLASH / SD",   true},
     {6,  "06", LV_SYMBOL_POWER,       "POWER",    "ACTIVE 240M",  true},
     {7,  "07", LV_SYMBOL_BELL,        "CLOCK",    "UTC +7",       false},
     {8,  "08", LV_SYMBOL_REFRESH,     "THEME",    "ORANGE/MINT",  false},
@@ -338,10 +341,12 @@ static void open_wifi_scanner_subpage(void)
 
     /* Header Title */
     lv_obj_t *lbl_t = lv_label_create(view_wifi);
-    lv_label_set_text(lbl_t, "WI-FI SCANNER // D350");
-    lv_obj_set_style_text_font(lbl_t, &font_orbitron_16, 0);
+    lv_label_set_text(lbl_t, "WI-FI SCANNER\n// NETWORK RECON");
+    lv_obj_set_style_text_font(lbl_t, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_t, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_t, 142, 6);
+    lv_obj_set_pos(lbl_t, 125, 4);
+    lv_obj_set_width(lbl_t, 225);
+    lv_label_set_long_mode(lbl_t, LV_LABEL_LONG_WRAP);
 
     /* Scan Action Button */
     btn_wifi_scan = lv_btn_create(view_wifi);
@@ -419,9 +424,18 @@ static void setting_grid_btn_click_cb(lv_event_t *e)
     if (item->id == 1) {
         /* Open Wi-Fi Scanner Sub-page */
         open_wifi_scanner_subpage();
+    } else if (item->id == 2) {
+        /* Open Display & Sleep Settings Sub-page */
+        gui_display_settings_open(view_settings);
+    } else if (item->id == 5) {
+        /* Open Storage Explorer Sub-page */
+        gui_storage_page_open(view_settings);
     } else if (item->id == 9) {
         /* Open Weather Settings Sub-page */
         gui_weather_settings_open(view_settings);
+    } else if (item->id == 10) {
+        /* Open About & Mission Callsign Sub-page */
+        gui_about_page_open(view_settings);
     }
 }
 
@@ -457,10 +471,12 @@ void gui_settings_page_open(void)
 
     /* Center Header */
     lv_obj_t *lbl_title = lv_label_create(view_settings);
-    lv_label_set_text(lbl_title, "SYSTEM SETTINGS // HUD");
-    lv_obj_set_style_text_font(lbl_title, &font_orbitron_16, 0);
+    lv_label_set_text(lbl_title, "SYSTEM SETTINGS\n// HUD CONTROL");
+    lv_obj_set_style_text_font(lbl_title, &font_orbitron_12, 0);
     lv_obj_set_style_text_color(lbl_title, COLOR_TEXT_WHITE, 0);
-    lv_obj_set_pos(lbl_title, 134, 6);
+    lv_obj_set_pos(lbl_title, 125, 4);
+    lv_obj_set_width(lbl_title, 245);
+    lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
 
     /* Top Right Mode Indicator Badge */
     lv_obj_t *badge = lv_obj_create(view_settings);
