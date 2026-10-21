@@ -35,6 +35,7 @@ static const char *TAG = "DEMO_LVGL";
 #include "gui_display_settings.h"
 #include "gui_storage_page.h"
 #include "gui_boot_screen.h"
+#include "screenshot_service.h"
 
 void setup();
 
@@ -124,6 +125,9 @@ void setup()
 
   /* Initialize Weather Service worker on Core 0 */
   weather_service_init();
+
+  /* Initialize Screenshot Service (Serial command + Touch hold) */
+  screenshot_service_init();
 
   /* Start Cyberpunk Root Access Boot Sequence, then load Launcher */
   gui_boot_screen_start(on_boot_complete);

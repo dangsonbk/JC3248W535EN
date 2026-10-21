@@ -17,6 +17,22 @@ This project was originally forked from the foundational work by **[NorthernMan5
 
 ---
 
+## 📸 Live Screen Captures & UI Gallery
+
+All screenshots below are native 1:1 pixel captures (480x320) taken directly on the physical hardware using the onboard screenshot utility:
+
+| Mission Control Dashboard | System Telemetry & Diagnostics |
+| :---: | :---: |
+| ![Mission Control Dashboard](docs/snap0001.jpg)<br/>*Orbital HUD Desktop with live RAM/PSRAM stats & module cards* | ![System Telemetry](docs/snap0002.jpg)<br/>*ESP32-S3 Dual-Core stats, task counter, SRAM/PSRAM gauges & storage* |
+| **System Settings Grid (5x2 HUD)** | **Wi-Fi Scanner & Network Recon** |
+| ![System Settings](docs/snap0003.jpg)<br/>*Modular 5x2 settings control panel with 10 dedicated sub-modules* | ![Wi-Fi Scanner](docs/snap0004.jpg)<br/>*Live 2.4GHz AP scan, RSSI signal indicators & active connection status* |
+| **Storage Diagnostics & Capacity** | **Media File Explorer** |
+| ![Storage Diagnostics](docs/snap0005.jpg)<br/>*Radial storage allocation gauge, FAT32 mount status & 1-bit SDMMC bus* | ![Media Explorer](docs/snap0006.jpg)<br/>*Dual-drive file repository with folder navigation across Flash & TF Card* |
+| **Motion JPEG Video Player** | **Atmospheric Telemetry (Weather HUD)** |
+| ![MJPEG Video Player](docs/snap0007.jpg)<br/>*Real-time ~25 FPS MJPEG stream player with Fullscreen toggle mode* | ![Atmospheric Telemetry](docs/snap0008.jpg)<br/>*Open-Meteo REST API weather, Solar cycle daylight arc & 4-day forecast* |
+
+---
+
 ## 🚀 Completed Features
 
 ### 1. Sci-Fi Cyberpunk HUD Interface & Design System
@@ -53,6 +69,14 @@ This project was originally forked from the foundational work by **[NorthernMan5
 ### 5. System Diagnostics
 * Live Free RAM (Internal SRAM) & Free PSRAM monitors.
 * Task manager breakdown, CPU frequency display, and uptime tracker.
+
+### 6. Hardware Screen Capture / Screenshot Utility
+* **Pixel-Perfect 1:1 Capture**: Leverages `lv_snapshot_take_to_buf()` in PSRAM and exports to standard 24-bit TrueColor uncompressed BMP (`480x320`, 460KB).
+* **Automatic Storage Routing & Fallback**: Automatically saves directly to MicroSD Card (`/sdcard/snapXXXX.bmp`), gracefully falling back to internal flash (`/storage/snapXXXX.bmp`) if no SD card is mounted or writable.
+* **Dual Triggering Methods**:
+  * **Touch Gesture**: Press and hold the **top-right corner** of the screen for 1.5 seconds on any screen.
+  * **Serial Console Command**: Type `screenshot` or `cap` in the serial terminal (`pio device monitor`).
+* **Visual Feedback**: Plays a camera shutter white flash animation and displays a toast banner confirming the saved file path.
 
 ---
 

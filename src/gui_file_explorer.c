@@ -229,6 +229,13 @@ static void scan_explorer_dir(const char *dir_path)
             continue;
         }
 
+        /* Ignore OS system/hidden folders and metadata files */
+        if (entry->d_name[0] == '.' ||
+            strcasecmp(entry->d_name, "System Volume Information") == 0 ||
+            strcasecmp(entry->d_name, "$RECYCLE.BIN") == 0) {
+            continue;
+        }
+
         exp_file_item_t *item = &s_files[s_num_files];
         strncpy(item->name, entry->d_name, sizeof(item->name) - 1);
         item->name[sizeof(item->name) - 1] = '\0';
