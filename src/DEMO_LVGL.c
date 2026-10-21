@@ -36,6 +36,7 @@ static const char *TAG = "DEMO_LVGL";
 #include "gui_storage_page.h"
 #include "gui_boot_screen.h"
 #include "screenshot_service.h"
+#include "audio_player.h"
 
 void setup();
 
@@ -119,6 +120,9 @@ void setup()
 
   /* Initialize System Log subsystem */
   sys_log_init();
+
+  /* Initialize Audio Player I2S hardware early to reserve GDMA interrupt before Wi-Fi */
+  audio_player_init();
 
   /* Initialize Wi-Fi Controller worker on Core 0 */
   wifi_controller_init();

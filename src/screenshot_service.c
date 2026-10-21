@@ -332,7 +332,7 @@ esp_err_t screenshot_service_init(void)
         s_touch_timer = lv_timer_create(touch_check_timer_cb, 100, NULL);
     }
 
-    /* 2. Start Serial Console Command Task on Core 0 */
+    /* 2. Start Serial Console Command Task on Core 1 */
     xTaskCreatePinnedToCore(
         serial_listener_task,
         "snap_serial",
@@ -340,7 +340,7 @@ esp_err_t screenshot_service_init(void)
         NULL,
         2,
         NULL,
-        0 // Core 0
+        1 // Core 1 (UI & Terminal core, leaves Core 0 free)
     );
 
     ESP_LOGI(TAG, "Screenshot service initialized (Touch corner hold + Serial command)");
